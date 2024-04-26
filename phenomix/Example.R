@@ -3,7 +3,7 @@ library(phenomix)
 library(glmmTMB)
 
 #carcass data
-winter <- read.csv('carcass.csv', check.names = FALSE) %>%
+winter <- read.csv('phenomix/carcass.csv', check.names = FALSE) %>%
   gather(key = 'Year', value = Count, 2:22) %>%
   mutate(Week = week(as.Date(Day)),
          Year = as.integer(Year)) %>%

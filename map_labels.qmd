@@ -1,0 +1,220 @@
+---
+title: "Map Labels"
+output: html
+---
+
+```{r}
+#| label: setup
+#| echo: false
+#| error: false
+
+# Load necessary libraries
+library(tidyverse)
+library(deltamapr)
+library(sf)
+library(geomtextpath)
+library(ggthemes)
+library(ggpubr)
+library(ggrepel)
+library(ggpp)
+library(ggspatial)
+library(ggmap)
+library(ggtext)
+#library(ggsn) #this package is not available because maptools is gone
+```
+
+```{r data-preparation}
+# Filter benthic stations
+benthic_stations <- P_Stations %>%
+  filter(Parameter == "Benthic")
+benthic_stations
+```
+
+## Beginning of Labelling Journey
+
+### Using `geom_label`
+
+```{r geom_label}
+ggplot() +
+  geom_sf(data = WW_Delta) +
+  geom_sf(data = benthic_stations, size = 2) +
+  theme_bw() +
+  theme(legend.position = "bottom") +
+  geom_label(data = benthic_stations, aes(x = Longitude, y = Latitude, label = Station), 
+             color = "black", fontface = "bold", size = 3)
+```
+
+### Using `geom_sf_label`
+
+```{r geom_sf_label}
+ggplot() +
+  geom_sf(data = WW_Delta)+
+  theme_bw()+
+  theme(legend.position = "bottom") +
+  geom_sf_label(data= benthic_stations, aes(label=Station),
+            color = "black", fontface = "bold", size = 3, label.padding = unit(0.5, "mm")) 
+
+ggplot() +
+  geom_sf(data = WW_Delta)+
+  theme_bw()+
+  theme(legend.position = "bottom") +
+  geom_sf_label(data= benthic_stations, aes(label=Station),
+                color = "black", fontface = "bold", size = 3, nudge_x = 0.2, nudge_y = 0.2, label.padding = unit(0.5, "mm")) 
+```
+
+### Using `geom_text`
+
+```{r geom_text}
+ggplot() +
+  geom_sf(data = WW_Delta) +
+  geom_sf(data = benthic_stations, size = 2) +
+  theme_bw() +
+  theme(legend.position = "bottom") +
+  geom_text(data = benthic_stations, aes(x = Longitude, y = Latitude, label = Station), 
+            color = "black", fontface = "bold", check_overlap = FALSE, size = 3)
+```
+
+### Using `geom_sf_text`
+
+```{r geom_sf_text}
+ggplot() +
+  geom_sf(data = WW_Delta) +
+  geom_sf(data = benthic_stations, size = 2) +
+  theme_bw() +
+  theme(legend.position = "bottom") +
+  geom_sf_text(data = benthic_stations, aes(label = Station), 
+               color = "black", fontface = "bold", check_overlap = FALSE, size = 3)
+
+ggplot() +
+  geom_sf(data = WW_Delta) +
+  geom_sf(data = benthic_stations, size = 2) +
+  theme_bw() +
+  theme(legend.position = "bottom") +
+  geom_sf_text(data = benthic_stations, aes(label = Station), 
+               color = "black", fontface = "bold", check_overlap = FALSE, size = 3, 
+               nudge_x = 0.2, nudge_y = 0.2)
+```
+
+### Using `ggrepel`
+
+#### `geom_text_repel`
+
+```{r geom_text_repel}
+ggplot() +
+  geom_sf(data = WW_Delta) +
+  geom_sf(data = benthic_stations, size = 2) +
+  theme_bw() +
+  theme(legend.position = "bottom") +
+  geom_text_repel(data = benthic_stations, aes(x = Longitude, y = Latitude, label = Station), 
+                  color = "black", fontface = "bold", size = 3)
+```
+
+#### `geom_label_repel`
+
+```{r geom_label_repel}
+ggplot() +
+  geom_sf(data = WW_Delta)+
+  geom_sf(data = benthic_stations, size = 2)+
+  theme_bw()+
+  theme(legend.position = "bottom") +
+  geom_label_repel(data= benthic_stations, aes(label=Station, geometry = geometry), stat = "sf_coordinates",
+                   color = "black", fontface = "bold", size = 3, position_nudge_center(x = -0.1,
+                                                                                       y = 0.25,
+                                                                                       direction = "split"), box.padding = 0, max.overlaps = Inf)
+
+
+ggplot() +
+  geom_sf(data = WW_Delta)+
+  geom_sf(data = benthic_stations, size = 2)+
+  theme_bw()+
+  theme(legend.position = "bottom") +
+  geom_label_repel(data= benthic_stations, aes(label=Station, geometry = geometry), stat = "sf_coordinates",
+                   color = "black", fontface = "bold", size = 3, position_nudge_center(x = -0.1, center_x = -121.9, 
+                                                                                       y = 0.2, center_y = 38,
+                                                                                       direction = "split"), box.padding = 0, max.overlaps = Inf)
+```
+
+### Using `ggspatial`
+
+#### Adding Spatial Annotations
+
+```{r ggspatial}
+ggplot() +
+  geom_sf(data = WW_Delta) +
+  geom_sf(data = benthic_stations, size = 2) +
+  annotation_scale(location = "bl", width_hint = 0.5) +
+  annotation_north_arrow(location = "bl", which_north = "true", 
+                         pad_x = unit(0.5, "in"), pad_y = unit(0.5, "in"),
+                         style = north_arrow_fancy_orienteering) +
+  theme_bw() +
+  theme(legend.position = "bottom") +
+  geom_text_repel(data = benthic_stations, aes(x = Longitude, y = Latitude, label = Station), 
+                  color = "black", fontface = "bold", size = 3)
+```
+
+### Custom Labelling Function
+
+#### Wrapper Function for Custom Labeling
+
+```{r custom_label_function}
+label_map <- function(data, delta_data, label_col, x_col, y_col) {
+  ggplot() +
+    geom_sf(data = delta_data) +
+    geom_sf(data = data, size = 2) +
+    theme_bw() +
+    theme(legend.position = "bottom") +
+    geom_label_repel(data = data, aes_string(x = x_col, y = y_col, label = label_col), 
+                     color = "black", fontface = "bold", size = 3)
+}
+
+label_map(benthic_stations, WW_Delta, "Station", "Longitude", "Latitude")
+```
+
+```{r ggforce}
+library(ggforce)
+
+ggplot() +
+  geom_sf(data = WW_Delta) +
+  geom_sf(data = benthic_stations, size = 2) +
+  theme_bw() +
+  theme(legend.position = "bottom") +
+  geom_mark_circle(data = benthic_stations, aes(x = Longitude, y = Latitude, label = Station), 
+                   color = "black", fontface = "bold", size = 3, label.buffer = unit(1, "lines"))
+
+```
+
+```{r shadowtext}
+library(shadowtext)
+
+ggplot() +
+  geom_sf(data = WW_Delta) +
+  geom_sf(data = benthic_stations, size = 2) +
+  theme_bw() +
+  theme(legend.position = "bottom") +
+  geom_shadowtext(data = benthic_stations, aes(x = Longitude, y = Latitude, label = Station), 
+                  color = "black", bg.color = "red", fontface = "bold", size = 3)
+```
+
+```{r}
+# Filter benthic stations
+R_EDSM_Subregions_Mahardja <- st_as_sf(R_EDSM_Subregions_Mahardja)
+```
+
+```{r centroid}
+ggplot(R_EDSM_Subregions_Mahardja)+
+  geom_sf(aes(fill=SubRegion))+
+  theme_bw()+
+  theme(legend.position="none") +
+    geom_text(aes(x = st_coordinates(st_centroid(geometry))[, 1], 
+                                                        y = st_coordinates(st_centroid(geometry))[, 2], 
+                                                        label = SubRegion), size = 3, color = "black") 
+```
+
+### Using `ggtextpath`
+
+#### `geom_textpath`
+
+```{r geom_textpath}
+?geom_textpath
+#https://cran.r-project.org/web/packages/geomtextpath/vignettes/geomtextpath.html
+```

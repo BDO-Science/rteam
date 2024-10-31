@@ -1,0 +1,15 @@
+Code,Scientific Name,Common Name
+201,Coregonus alpenae,Longjaw cisco
+202,Coregonus artedi,"Cisco, lake herring"
+203,Coregonus clupeaformis,Lake whitefish
+204,Coregonus hoyi,Bloater
+205,Coregonus johannae,Deepwater cisco
+206,Coregonus kiyi,Kiyi
+207,Coregonus nigripinnis,Blackfin cisco
+208,Coregonus reighardi,Shortnose cisco
+210,Coregonus zenithicus,Shortjaw cisco
+213,Unknown Coregonus spp.,"Could be species code = 201,202,204,205,206,207,208,210 (Excludes C. clupeaformis)"
+127,Lota lota,Burbot
+307,Salvelinus namaycush,Lake trout
+0,No fish caught,
+216,Total Coregonus spp.,"The total of species codes = 201,202,204,205,206,207,208,210,213"

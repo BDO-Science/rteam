@@ -1,15 +1,88 @@
 library(tidyverse)
-library(janitor)
 
-#######reading in files, changing data type, cleaning column names, and renaming columns
+#set url for carcass data
+url <- 'https://www.cbr.washington.edu/sacramento/data/php/rpt/carcass_detail.php?sc=1&outputFormat=csv&year=2023&run=winter&clip=all&sex=all&condition=all'
 
-#with base R
-s1 <- read.csv('steelhead.csv') #read in file
-s1$Sample.Time <- as.Date(s1$Sample.Time) #convert sample time from date/time to just date
-names(s1)[1] <- "date" #rename column to date
+#read in data
+data <- read_csv(url)
 
-#with tidyverse
-s2 <- read_csv('steelhead.csv') %>%
-  clean_names() %>%
-  mutate(sample_time = as.Date(sample_time)) %>%
-  rename('date' = 'sample_time')
+#############
+#filtering
+#############
+
+#single parameter filter
+filter_base <- subset(data, clip == 'No Clip') #base R with subset
+filter_base2 <- data[data$clip == 'No Clip',] #base R by subsetting
+
+filter_tidyverse <- filter(data, clip == 'No Clip') #dplyr
+
+#multi parameter filter with tidyverse
+filter_tidyverse2 <- filter(data, clip == 'No Clip' & sex == 'F') #using the & operator
+filter_tidyverse3 <- filter(data, surveydate < "2023-06-15" | surveydate > "2023-08-01") #using the OR operator
+
+###################
+#selecting columns
+###################
+
+select_base <- data[,c('surveydate', 'sex', 'forklength')] #selecting by index
+select_base2 <- subset(data, select = c('surveydate', 'sex', 'forklength')) #selecting with subset
+
+select_tidyverse <- select(data, c(surveydate, sex, forklength)) #selecting with tidyverse
+select_tidyverse2 <- select(data, c(2,11,12)) #using column numbers instead of names
+select_tidyverse3 <- select(data, c(date = 2, 11, FL = 12)) #changing column names while selecting
+
+################
+#basic chaining
+################
+chain_base <- mean(data[data$sex == 'F',]$forklength, na.rm = TRUE) #calculating mean fork length of females w/ baseR
+
+chain_tidyverse <- data %>% #calculating mean fork length of females with tidyverse
+  filter(sex == 'F') %>%
+  summarize(avg_fl = mean(forklength, na.rm = TRUE))
+
+chain_tidyverse2 <- data %>% #calculating mean fork length of females with tidyverse and pulling value
+  filter(sex == 'F') %>%
+  summarize(avg_fl = mean(forklength, na.rm = TRUE)) %>%
+  pull()
+
+################################
+#chaining with transformation
+################################
+grouping_base <- aggregate(forklength ~ sex, data = data, FUN = mean)
+
+grouping_tidyverse <- data %>%
+  group_by(sex) %>%
+  summarize(mean_fl = mean(forklength, na.rm = TRUE))
+
+grouping_tidyverse2 <- data %>%
+  filter(!is.na(sex)) %>%
+  group_by(sex) %>%
+  summarize(mean_fl = mean(forklength, na.rm = TRUE))
+
+################################
+#ggplot vs baseR plot
+################################
+
+##base R plotting
+par(mfrow = c(1, 2)) # Set up the plotting area to have 2 plots side by side
+
+# Histogram for Male
+hist(data$forklength[data$sex == "M"],
+     main = "Forklength for Males",
+     xlab = "Forklength",
+     col = "lightblue",
+     border = "black")
+
+# Histogram for Female
+hist(data$forklength[data$sex == "F"],
+     main = "Forklength for Females",
+     xlab = "Forklength",
+     col = "lightpink",
+     border = "black")
+
+##ggplot
+graph <- ggplot(data, aes(x = forklength, fill = sex)) +
+  geom_histogram(binwidth = 50, position = "identity", alpha = 0.6, color = "black") +
+  labs(title = "Forklength for Males and Females", x = "Forklength", y = "Count") +
+  scale_fill_manual(values = c("M" = "lightblue", "F" = "lightpink")) +
+  theme_minimal()

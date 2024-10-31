@@ -1,0 +1,1164 @@
+---
+title: "Data Manipulation Workshop For Honolulu AFS August 2024"
+author: "S. A. Valentine and G. R. Johnson"
+date: "7/3/2023"
+output: html_document
+---
+
+
+# Introduction
+
+This workshop will cover parts of the tidyverse including `dplyr`, `readr`, `lubridate`, and `tidyr` packages. We will use various functions to manipulate and clean fisheries data, moving from messier or raw data to something that is manageable, summarized, or able to be visualized. The aim of this workshop is to teach participants basic and commonly used tidyverse functions throughout the entire data manipulation process. We recommend using the tidyverse functions over most baseR functions as tidyverse code is more widely used and user friendly as it reads more like text and you can easily add code to continue manipulating your data in `dplyr` or adding graphics in `ggplot2`. We will not cover `ggplot2`, but it can be learned as an extension of other tidyverse functions and packages.
+
+If you are interested in learning about the tidyverse further, I recommend Hadley Wickham's [books](https://r4ds.hadley.nz/). R for Data science goes into more detail and is easier to follow than other books and provides examples. Parts of this workshop stem from ideas in his book. 
+
+We will use two datasets for these exercises.  
+
+Fisheries Data for walk-through examples: Long Term Resource Monitoring (LTRM) element fish community assemblage data of the Upper Mississippi River System housed at the Upper Mississippi Environmental Science Center (UMESC) with the USGS. 
+
+Fisheries Data for exercises: Gillnet catches from 1930-1932 in Lake Michigan. (https://www.sciencebase.gov/catalog/item/5e9f635482cefae35a128c38)
+
+
+NOTE: This document is an R Markdown document. Therefore, all text outside of "code chunks" is just text. Code is provided in code chunks only and you can only run code that is written in code chunks. Please refer to the R Markdown tutorial shared in the pre-conference materials to better understand this format. 
+
+To quickly type in a ode chunk- you type in alt-ctrl-i 
+
+
+
+
+---
+
+### Readr
+
+Readr is part of the tidyverse that allows easy import of a large variety of datasets without column name changes, no weird data conversions, and the data are read as a tibble (a type of table that is easier to manipulate with `dplyr` functions) rather than a dataframe as in baseR (which is where many of the problems of data import stem from).
+
+NOTE: For some packages that use baseR functions, reading data must be conducted with baseR's `read.csv()`. I found issues in the past in packages such as SIBER and MIXSIAR that required the use of baseR rather than tidyverse functions.
+
+For examples, you can read any delimited file using the following functions: 
+
+```{r read files, eval=FALSE}
+#read comma delimited files, baseR
+read.csv(data)
+
+library(readr)
+#read comma delimited files
+read_csv(data)
+#read semicolon delimited files
+read_csv2(data)
+#read tab delimited files
+read_tsv(data)
+#read a file with any delimiter
+read_delim(data)
+#read fixed-width files
+read_fwf(data)
+#read a table with columns separated by white space
+read_table(data)
+```
+
+You can write files using the following functions: 
+
+```{r write files, eval=FALSE}
+#write a .csv, baseR
+write.csv(data)
+
+library(readr)
+#write a .csv
+write_csv(data)
+#write a .csv for Excel specifically
+write_excel_csv(data)
+#write a tab delimited file
+write_tsv(data)
+```
+
+You can add many arguments to these reading and writing functions including skip rows (sometimes metadata are at the top of the data), header included or not, adding new lines, how to denote NAs, column type (data, integer, character), etc. For example, if R reads your data columns as an incorrect type, you can specify the column type when reading in the data. Use the `col_types` function as we will see in the example of reading the fish dataset. 
+
+We will use fish community data that were collected by the Long Term Resource Monitoring element of the Upper Mississippi River Restoration Program. These data are housed by the USGS through the Upper Mississippi Environmental Sciences Center and are freely available to use. These data are a subset of the fish community sampled in 2018. 
+
+When reading in data from an Rmd file, it will read in data from the folder where the Rmd file is. Denoted by the "./" before the filename. Do not need a working directory, unless it's in a different folder.
+
+```{r read fish data}
+library(tidyverse) #load the readr package
+
+fish <- read_csv("./2018 LTRM data.csv", col_types = list(weight = col_double())) #change the weight column to a numeric rather than a character string (in tidyverse, numeric class is called a double)
+
+```
+
+
+Quick aside: Coercion of data types
+
+```{r data type coercion}
+#If you don't specify the column type while bringing in the data, you can coerce the columns either within a function or permanently using wrappers such as as.factor(), as.numeric()
+
+#example in a function NOT PERMANENT CHANGE:
+ggplot(fish, aes(as.factor(fishcode), weight)) +
+  geom_boxplot()
+
+#example as permanent change: 
+fish$fishcode <- as.factor(fish$fishcode)
+
+#However, if a column is read as a character and is supposed to be numeric, you need two wrappers otherwise the data will change to numeric based on ranks only. For example a character list of 0, 5, 17, 19 would be coerced to 1, 2, 3, 4 when changed to a numeric only. To preserve the 0, 5, 17, 19 when converting to numeric do the following: 
+fish$weight <- as.numeric(as.character(fish$weight))
+```
+
+Before we manipulate the data, it's always a good idea to look at your data. There are several functions to look at the structure of your data and the types of variables you have. Each variable has a class (e.g. numeric, character, formula).
+
+```{r view fish data, eval=FALSE}
+#install dplyr
+#install.packages("dplyr")
+
+#load dplyr
+library(dplyr) 
+
+dim(fish) #provides number of columns and rows
+length(fish) #number of rows in dataset or column. Used for counting in functions as well
+str(fish) #looks at the structure, numeric variables (num)
+glimpse(fish) #similar to str, but a tidyverse function, notice that in #glimpse the factors are "dbl" meaning double which just refers to real numbers
+
+
+names(fish) #provides the names of the columns
+head(fish) #shows the first 6 rows of data
+tail(fish) #shows the last 6 rows of data
+View(fish) #opens the data in a new tab
+slice(fish, 1:10) #selects the first 10 rows of data (one through 10)
+slice(fish, 1, 10) #selects the first and 10th rows of data
+```
+
+---
+
+### Unique
+
+`unique()` is a handy baseR function. It shows you all of the individual unique variables in your dataset. This function is helpful for finding factor categories that might be duplicates because of a capitalization or spelling error or when trying to filter results and you want to know the exact factor levels and their spellings in the data. 
+
+```{r unique example}
+unique(fish$fishcode) #this spits out the unique factors of species in our object
+```
+
+
+---
+
+# Dplyr
+
+Dplyr is the most commonly used tidyverse package for managing and initially summarizing data. We will discuss some of the functions. For more details on these functions as well as others not discussed, check out the [dplyr webpage](dplyr.tidyverse.org/reference/)
+
+Commonly used functions in `dplyr`: 
+
+*`distinct()` - selects first occurrence of data
+
+*`rename()` - renames columns
+
+*`select()` - select columns
+
+*`filter()` - filters rows
+
+*`arrange()` - sort data
+
+*`mutate()` - adds new data/manipulations and kepps old data
+
+*`transmute()` - adds new data/manipulations but only keeps new data
+
+*`group_by()` - groups data
+
+*`summarize()` - summary functions
+
+
+
+We'll go through each function and using the pipe as well. But let's load the package first. 
+
+```{r load dplyr}
+#install.packages("dplyr")
+library(dplyr)
+```
+
+---
+
+### Distinct
+
+`distinct()` allows you to keep only rows with a unique combination of data. For example, if you have multiple rows with the same fish ID, and only want to keep one row from each fish ID to determine your sample size of unique fish, you could use distinct. 
+
+```{r distinct}
+#Do we have unique IDs for all rows in the fish data? 
+distinct(fish, Vital_Rate_Barcode, .keep_all = TRUE)#specify the fish data, specify what column you want to have distinct values from (our ID column is called Vital_Rate_Barcode), and then .keep_all = TRUE keeps all of the other data columns rather than just the barcode column
+#we can see this dataset has 4,804 unique rows, so 5 of our fish previously had the same barcode/ID
+
+#The distinct function can also be used to remove duplicate rows. If you create a dataset from multiple sources that may have some overlapping data, you can remove duplicate rows by wrapping the dataframe within the distinct function
+distinct(fish)
+
+# If you wnanted to save this as a new dataset, newfish <- distinct(fish)
+```
+
+---
+
+### Rename
+
+`rename()` changes the names of data columns. 
+
+NOTE: `dplyr` doesn't save your results unless you save your changes as an object using `objectname <-`.
+
+```{r rename}
+rename(fish, Species = fishcode) #new name, then old name, note we do not have a permanent name change because we did not save our change using the objectname <- syntax
+
+fish <- rename(fish, c(Species = fishcode, Weight = weight, TL = length)) #multiple column name changes use the concatenate function (c()) 
+# New column name = old col name
+#columns 73, 74, 78 are changed
+# Can also use fish <- dplyr::rename(fish, c(Species = fishcode, Weight = weight, TL = length)) 
+names(fish)
+```
+
+---
+
+### Select
+
+`select()` selects columns of your data. 
+
+```{r select, eval=F}
+species <- select(fish, Species) #data first, then what column you want to select. Here we saved the Species column as an object called "species"
+View(species)#You can see that select only pulled out the column we wanted/specified
+```
+
+You can select multiple columns as well. (If you wanted to make a subset of your data)
+
+```{r select multiple, eval=FALSE}
+#select Species and TL columns
+speciesTL <- select(fish, Species, TL) #just separate variable/column names using a comma 
+
+#select all columns in between Species and Weight using ":"
+select(fish, Species:Weight) # ":" always means from-through in R. So this can read as select from the fish dataset columns Species through Weight 
+
+#select columns 73 through 78
+select(fish, 73:78) #same result as selecting Species:Weight
+
+select(fish, c(10,13,73:78)) #add the pool and sampling period columns. We now include concatenate (c) with the "from-through" colon. Can also mix names and colnums
+names(fish) # will also give you col nums as well
+```
+
+There are quite a few operators you can use with `select` to get certain columns:
+
+* `starts_with("J")` selects columns that begin with "J"
+* `ends_with("ber")` selects columns that end with "ber"
+* `contains("oct")` selects columns that have "oct" within their name
+* `matches("x.1")` selects columns with some sort of pattern
+* `num_range("x", 1:3)` selects columns matching x1, x2, and x3
+
+
+```{r select strings}
+select(fish, ends_with("qf")) #there are multiple columns that end in "qf" in the dataset. Select all of these columns
+```
+
+You can also rearrange variables in your dataset using `everything()` if you want your data columns to look a certain way.
+
+```{r everything}
+#Let's put Species as the first column
+select(fish, Species, everything()) # everything() will select everything else
+```
+
+---
+
+### Filter
+
+Filter selects rows based on some sort of specification. You can filter based on values or some sort of factor like species, volume size, date, etc. 
+
+```{r filter single}
+#We're going to filter first based on TL 
+
+large <- filter(fish, TL > 500) #name the new object "large", use the filter function, so specify dataframe first, then the variable  (TL) and what parameter of the variable (>500)
+glimpse(large) #you can see that there are 246 fish with a TL of more than 500 (246 observations/rows)
+
+#let's get the Channel Catfish only
+catfish <- filter(fish, Species == "CNCF")#use the filter function. Again, specify the data frame, then the column we want to filter from (Species). Here, we want Channel Catfish only so we have to use a DOUBLE equal sign. If you use only one equal sign, it won't work.
+glimpse(catfish)
+#there are 1,253 Channel Catfish
+```
+
+You can use the following qualifiers to filter results: 
+
+* `>` greater than
+* `<` less than
+* `>=` greater than or equal to
+* `<=` less than or equal to
+* `!=` not equal to
+* `==` equal to
+* `near()` near to (can sometimes run into problems with `==`)
+* `between(column, x, y)` column of interest, number minimum, number maximum
+* `!is.na()` values that are not NAs
+If you want to filter for multiple results (e.g. y and x), you can use the following Boolean operators:
+
+* `y & !x` want y but not x (filters for data with y, excluding those with x)
+* `x & y` want y and want x (filters for data with both qualifiers only)
+* `x | y` want x or want y (filters for data with either x or y) May struggle with numeric factors
+* `%in% c(x,y)` including x or y (filters for data that includes either x or y) This one is the most helpful operators
+
+
+Let's practice with a couple of these Boolean operators. 
+
+```{r filter multiple}
+#let's say you want to filter for multiple things, Let's filter for forage fish, so we want emerald shiner, bullhead minnow, and gizzard shad There are a couple ways to do this. 
+unique(fish$Species)
+
+
+#1. use | which means "or". So we are filtering for species that are Emerald Shiner, Gizzard Shad, or Bullhead Minnow
+forage <- filter(fish, Species == "ERSN" | Species == "GZSD" | Species == "BHMW")
+glimpse(forage)
+unique(forage$Species)
+#the above 2 data sets are the same
+
+#2. use != to remove the other species from the fish we want. != means "not including" (when you say not including you need to switch to & )
+forage1 <- filter(fish, Species != "CNCF" & Species != "BLGL" & Species != "FWDM" & Species != "LMBS" & Species != "WRMH")
+glimpse(forage1)
+unique(forage1$Species)
+
+#3. use %in% (recommended)
+forage2 <- filter(fish, Species %in% c("ERSN", "GZSD", "BHMW")) #%in% means "including", we're filtering from Species and including Emerald Shiner, Gizzard Shad, and Bullhead Minnow. You need to use the c() function here
+
+glimpse(forage2)
+unique(forage2$Species)
+
+#4. The ! can be used with the %in% to remove a list of species
+forage3 <- filter(fish, !Species %in% c("CNCF", "BLGL", "FWDM", "LMBS", "WRMH"))
+glimpse(forage3)
+unique(forage3$Species)
+
+```
+
+We can see that all four objects (forage, forage1, forage2, and forage 3) we just made are the same with only Emerald Shiner, Gizzard Shad, and Bullhead Minnows. 
+
+What if we wanted to filter based on two or more columns?
+
+```{r filter multiple columns}
+#we can use the & for this
+#let's filter only Catfish with a TL above 500
+catfish2 <- filter(fish, as.numeric(TL) > 500 & Species == "CNCF")#specify dataframe, filter by Species, use &, filter by TL
+glimpse(catfish2)
+```
+
+
+Sometimes you want to separate NA data from the rest of the dataset, it's easiest to use `is.na()` along with filter to do so. 
+
+```{r filter NA, eval=FALSE}
+filter(fish, !is.na(Weight)) #we are filtering  out any values of NA in the Weight column
+#there are 3,487 observations containing weight data
+# Make sure the ! is before is.na or it will keep the NAs only
+
+```
+
+Here's an example using the between function to keep all records between two values or exclude records between two values. Note that the between function uses <= and >= for the bounds.
+
+```{r filter between two numbers}
+
+#Use the between function within filter to identify the column and bounding values.
+Between <- filter(fish, between(TL, 400, 600))
+
+#Insert a "!" before the between function to indicate you do not want to keep records between these values.
+NotBetween <- filter(fish, !between(TL, 400, 600))
+
+Between$TL
+```
+
+
+Filter combinations
+
+There are a few nuances with using filter when switching between &, |, %in%, etc. Basically, order of operations and common sense govern the way the code should be written. 
+
+```{r filter combinations}
+#Filter all rows that include GN ID and Species codes listed above
+
+#we want to look at forage fish from the first two stations (Pools 4 and 8)
+#using two %in%
+foragestation <- filter(fish, Species %in% c("ERSN", "GZSD", "BHMW") &
+                 fstation %in% c(1,2))
+#using %in% and |
+foragestation2 <- filter(fish, Species %in% c("ERSN", "GZSD", "BHMW") & (fstation == 1 | fstation == 2)) #need to have parentheses around the | for fstation because of order of operations
+#this tells R include the species ERSN, GZSD, BHMW from fstation 1 and 2
+
+#without the parentheses around the | 
+foragestation2 <- filter(fish, Species %in% c("ERSN", "GZSD", "BHMW") & fstation == 1 | fstation == 2) #this tells R to include the species ERSN, GZSD, BHMW from fstation 1 or any data from fstation 2
+
+#without using %in% 
+foragestation3 <- filter(fish, (Species == "ERSN" | Species == "GZSD" | Species == "BHMW") & (fstation == 1 | fstation == 2)) #need to include two sets of parentheses around the groups of ORs (|) and separated by the &
+
+
+### extra info:
+# Filter for the month of June
+filter(fish, str_detect(fdate, "^6")) #starts with 
+
+#Filter for only 2018
+filter(fish,str_detect(fdate, ".2018")) #ends with
+
+
+```
+
+---
+
+### Arrange
+
+Arrange will sort your data based on some sort of specification you want. Arrange defaults to sorting in ascending order, but you can specify using another argument if you want descending order. 
+
+```{r arrange}
+#arrange in ascending order of TL
+arrange(fish, TL)
+
+#arrange in descending order of Weight
+arrange(fish, desc(Weight))
+
+```
+
+---
+
+### Mutate
+
+Mutate lets you create new data columns using the data you already have and tacks on the data to your existing dataframe. This is a super easy way to multiply data columns together or use some sort of function on your data.
+
+```{r mutate}
+#Let's create a new column of TL that is in cm rather than the current mm
+fish <- mutate(fish, TL_cm = TL / 10) #call the data (fish), create a name for the new column (`TL(cm)`) and do whatever function you want (TL/10). 
+glimpse(fish) #we can see our new variable TL(cm), it stays in the dataset
+
+#can also use multiple columns within the dataset to create a new one
+fish <- mutate(fish, PWR = amps * volts) #this should be the same as the pwrused column
+
+select(fish, pwrused, PWR) #check to make sure the columns are the same
+```
+
+
+```{r mutate 2}
+#what percent of the total weight of catfish, does each catfish individually account for? 
+mutate(catfish2, percentwght = Weight / sum(Weight, na.rm=TRUE) * 100)# weight of each catfish divided by the sum of the weights times 100 to get percent
+# you can do this with percent spp composition, etc
+```
+
+---
+
+### Transmute
+
+Transmute does the same thing as mutate, but only keeps the new variables, not the original variables. 
+
+```{r transmute}
+fish2 <- transmute(fish, PWR = amps * volts, TL_cm = TL / 10) #same code as mutate, just add "trans"; this is a new dataset with only our two variables we made
+fish2 #we see that the original data are not in the fish2 dataframe 
+```
+
+---
+
+# Exercise 1
+
+Open the Tidyverse workshop exercises .RMD to complete the exercises. 
+
+You will use the Gillnet catches from 1930-1932 in Lake Michigan data to answer the following questions. You will use the tools we have covered so far within `dplyr` and will have approximately 40 minutes to complete the exercises and ask questions. If you finish early, explore the data on your own, walk around, etc.  
+
+---
+
+# Basic Tidyverse Functions Continued
+
+### Summarize
+
+Summarize allows you to calculate summaries of data, which can be really helpful for graphing and general summary stats of your data later. 
+
+```{r summarize}
+#what's the mean TL and Weight of all the fish? #remove NAs from the Weight column to get a mean
+#summarize is more powerful when it's combined with group_by, but we need to learn the pipe first
+```
+
+---
+
+### The pipe
+
+Before we continue with `group_by`, you need to know what the pipe is. The pipe is symbolized by `%>%`. It is a way in **ONLY** the tidyverse to do multiple things with data. Essentially if you use the pipe you are able to manipulate the data in one way and then continue to manipulate the data as many times as you want by just continuing to use the pipe. Additionally, you can pipe directly into `ggplot2` for graphing even though it doesn't use the pipe. There is no way to continue to manipulate data in Base R unless you create new objects of your data constantly or "add" onto data in plots and run the code together (this is messy and confusing). The pipe is very handy. 
+
+We'll do  an example of the pipe when we use `group_by` with `summarize`. 
+
+Shortcut for this is ctrl-shift-m %>% 
+
+---
+
+### Group by
+
+Group by is really helpful with summarize. It allows you to group your data based on some sort of factor. 
+
+```{r groupby}
+#Group the data by species, then calculate the mean TL of each species
+(fishgroup <- fish %>% #with the pipe, you specify the data you're using at the beginning. So here we specify that we are manipulating the fish dataset, then write the pipe %>%
+group_by(Species) %>% #next we are going to group the fish data by Species. This clumps the same species together. See here how we do not have to first specify the data argument, because it's already specified in the pipe. Write the pipe symbol again. 
+summarize(meanTL = round(mean(TL_cm), digits = 2), #here, round the meanTL to make the output cleaner. We only have 2 decimals with digits=2
+          minTL = min(TL_cm), 
+          maxTL = max(TL_cm))) #Now we are going to use summarize to find the mean, max, and min TL of each fish species. Here, we named the mean manipulation "mean" by using "mean=". You do not have to name the summary
+```
+
+Now we have the average, max, and min of TL of each of our fish species in just a couple lines of code. 
+
+The group_by, summarize combination becomes really powerful when you want to summarize data by multiple factors.
+
+```{r group by multple factors}
+
+fish %>%
+  group_by(fstation,#GRoup by Species within station. When grouping by multiple factors list the factors in order from largest to smallest (i.e., this example is species within fstation).
+           Species) %>%
+  summarise(meanTL = round(mean(TL_cm), digits = 2), #here, round the meanTL to make the output cleaner. We only have 2 decimals with digits=2
+          minTL = min(TL_cm), 
+          maxTL = max(TL_cm))
+
+# if you have trouble with summarize not working, add dplyr::summarize because a package is masked
+```
+
+Notice with `summarize` that the other columns dissapear from your final product. If you want to keep the other columns, you can use `group_by` with `mutate`. However, this combination keeps all rows and duplicates the new summarized rows in the columns. We can remove the duplicated rows with `distinct`. 
+
+```{r group by and mutate}
+fish %>%
+  group_by(fstation,#Group by Species within station. When grouping by multiple factors list the factors in order from largest to smallest (i.e., this example is species within fstation).
+           Species) %>%
+  mutate(meanTL = round(mean(TL_cm), digits = 2), #here, round the meanTL to make the output cleaner. We only have 2 decimals with digits=2
+          minTL = min(TL_cm), 
+          maxTL = max(TL_cm)) 
+```
+
+See how at the end of the dataset that we now have three new columns we created that are the "summarized" columns, but the values are repeated for each species and fstation. We can keep all other variables and maintain just the unique combinations of species and fstation using `distinct`. 
+
+```{r}
+fish %>%
+  group_by(fstation,#GRoup by Species within station. When grouping by multiple factors list the factors in order from largest to smallest (i.e., this example is species within fstation).
+           Species) %>%
+  mutate(meanTL = round(mean(TL_cm), digits = 2), #here, round the meanTL to make the output cleaner. We only have 2 decimals with digits=2
+          minTL = min(TL_cm), 
+          maxTL = max(TL_cm)) %>% 
+  distinct(Species, fstation, .keep_all = TRUE) #specify the variable(s) that are the unique identifiers (Species, fstation), .keep_all = TRUE means it will keep all other columns
+```
+
+Now we have 36 rows, just like the the `group_by` `summarize` combination, but we have all other columns of data. 
+
+My favorite way to get the number of observations in my data are to use the pipe with group_by and summarize. 
+
+```{r summarize n}
+#number of fish in each species within our dataset
+fish %>%
+  group_by(Species) %>% #group by species here or any factor you want (or multiple factors)
+  summarize(N = n()) #use n() with nothing in the parentheses to get the number of observations
+
+#OR
+fish %>% 
+  group_by(Species) %>%
+  count() #count automatically creates a variable called n that is the count of the data. Simpler to write than summarize(N=n())
+```
+
+```{r create proportion}
+#Often, we work with percents or proportions, so calculating them using mutate is beneficial
+
+#we want to calculate the proportion/percent of individuals in each species 
+fish %>% #take the fish dataset
+  group_by(Species) %>% #first group by species
+  count() %>% #count the number of individuals in each species
+  ungroup() %>% #ungroup the data so you can perform other manipulations/analyses on it. Group would only allow us to sum the BHMW and find a proportion within that group (which would equal 1). Ungroup allows us to determine the proportion from the entire dataset. Count retains groups in data, so need to ungroup below
+  mutate(prop = n / sum(n), #calculate proportion as the number of individuals in a species divide by the total number of individuals in the dataset. Count automatically labels this "n"
+         percent = n / sum(n) * 100) #calculate percent which is the proportion times 100. 
+
+#Using summarize instead of count
+fish %>%
+  group_by(Species) %>%
+  summarize(N = n()) %>%
+  mutate(prop = N / sum(N),
+         percent = N / sum(N) * 100)  # all of these can be saved as an object 
+```
+
+
+### Apply functions across multiple columns
+
+You can apply functions in `summarize` and `mutate` using the wrapper `across`. 
+
+```{r across with mutate}
+#this is what the original data look like
+fish %>%
+  select(Weight, TL_cm)
+
+#let's use round across both weight and length columns
+fish %>%
+  mutate(across(c(Weight, TL_cm), ~ round(.x, digits = -1))) %>% #within mutate, use the wrapper across on columns Weight and TL_cm (use c() to denote multiple columns). Use the ~ with the function round and specify the data spot in the round function as ".x" to denote the x should be whatever is in the "c()" function wrapper. (so weight and TL_cm). Digits =-1 rounds things to tens place. Good for binning!!
+  select(Weight, TL_cm)
+
+```
+
+```{r across with groupby summarize}
+#get mean and sd of weight and length using group by and summarize
+fish %>%
+  group_by(Species) %>%
+  summarize(across(c(Weight, TL_cm), list(mean = mean, sd = sd))) #specify the data columns in c(), and list the functions used. 
+#we notice that the results have NAs for the weight columns because of NAs in the data. You will need to change the function code slightly to add na.rm=TRUE to the data. 
+
+
+#get mean and sd of weight and length using group by and summarize
+fish %>%
+  group_by(Species) %>%
+  summarize(across(c(Weight, TL_cm), list(mean = ~ mean(.x, na.rm = TRUE), sd = ~ sd(.x, na.rm = TRUE)))) #specify the data columns in C(), list the multiple functions used. mean = is the name of the new column, ~ mean(.x, na.rm=TRUE) is the function to use. Allows you to specify the na.rm and other qualifiers to the function. Repeat for sd. The tilde always means "a function of"
+```
+
+
+```{r long example without across}
+#the above code can also be completed with the following code, but takes more effort to write. 
+fish %>%
+  group_by(Species) %>%
+  summarize(Weight_mean = mean(Weight, na.rm = TRUE), Weight_sd = sd(Weight, na.rm = TRUE), TL_cm_mean = mean(TL_cm), TL_cm_sd = sd(TL_cm)) #specify the functions independently in this scenario. 
+```
+
+
+---
+
+# Exercise 2
+
+
+
+You will use the tools we have covered so far within `dplyr` and will have approximately 40 minutes to complete the exercises and ask questions. If you finish early, explore the data on your own, walk around, etc.  
+
+---
+
+
+
+# Useful Data Tidying Functions
+
+For this section we will discuss common and useful data tidying functions in the `tidyr` and `lubridate` packages of the tidyverse. These functions can be combined with `dplyr` and other tidyverse package functions.
+
+```{r load tidyr}
+library(tidyr)
+```
+
+### Rounding
+
+Especially when calculating summary statistics or new variables for subsequent incorporation into visuals, rounding values can be beneficial. There are a couple different ways to round values of calculated data. 
+
+Below is an example previously used for rounding a calculated average. 
+
+```{r round}
+#this first example does not include the wrapper "round". We can see that the output has a large number of decimal places which is not conducive to show in reports or manuscripts
+(fishgroup <- fish %>% 
+group_by(Species) %>% #next we are going to group the fish data by Species
+summarize(meanTL = mean(TL_cm), #mutate several variables
+          minTL = min(TL_cm), 
+          maxTL = max(TL_cm)))
+
+#use round to get 2 decimal places
+(fishgroup <- fish %>% 
+group_by(Species) %>% 
+summarize(meanTL = round(mean(TL_cm), digits = 2), #here, round the meanTL to make the output cleaner. We only have 2 decimals with digits=2
+          minTL = min(TL_cm), 
+          maxTL = max(TL_cm)))
+
+#you can change the number of digits to match whatever significant figures are needed. Let's change the rounding to 4 
+(fishgroup <- fish %>% 
+group_by(Species) %>% 
+summarize(meanTL = round(mean(TL_cm), digits = 4), # We have 4 decimals with digits=4
+          minTL = min(TL_cm), 
+          maxTL = max(TL_cm)))
+
+#you can also round to the nearest whole number digits = 0 or the 10s (digits = -1) or hundreds place (digits = -2) by using negative integers with the round function
+(fishgroup <- fish %>% 
+group_by(Species) %>% 
+summarize(meanTL = round(mean(TL_cm), digits = -1), # We have rounded to the tens place with digits=1
+          minTL = min(TL_cm), 
+          maxTL = max(TL_cm)))
+```
+
+We can also use `floor` and `ceiling` to round values down or up to the nearest whole number. 
+
+```{r floor and ceiling}
+#without rounding
+(fishgroup <- fish %>% 
+group_by(Species) %>% 
+summarize(meanTL = mean(TL_cm)))
+
+#use floor to round down to the nearest whole number
+(fishgroup <- fish %>% 
+group_by(Species) %>% 
+summarize(meanTL = floor(mean(TL_cm))))
+
+#use ceiling to round up to the nearest whole number
+(fishgroup <- fish %>% 
+group_by(Species) %>% 
+summarize(meanTL = ceiling(mean(TL_cm))))
+```
+
+You can combine `floor` and `ceiling` with other functions like `round_any` in `plyr`. These combined functions can be helpful when creating length bins for data or similar scenarios. 
+
+```{r combined rounding}
+library(plyr)
+
+#round down to the nearest 10s place
+(fishgroup <- fish %>% 
+group_by(Species) %>% 
+dplyr::summarize(meanTL = round_any(mean(TL_cm), 10, f = floor))) #use round_any to round down (f=floor) the mean to the nearest 10s place
+
+#round up to the nearest 10s place
+(fishgroup <- fish %>% 
+group_by(Species) %>% 
+dplyr::summarize(meanTL = round_any(mean(TL_cm), 10, f = ceiling))) #use round_any to round up (f=ceiling) the mean to the nearest 10s place
+
+```
+
+--- 
+
+## Missing Data
+
+Often, there are missing data within datasets. These missing values may be explicit (NAs) or implicit (completely missing from the dataset, data were not gathered). Explicit missing values are much more obvious, while implicit ones are equally important but can more easily be overlooked. 
+
+### Explicit Missing Data with NAs
+
+You can replace specific values in datasets with NAs and vice-versa. We previously showed a couple methods to remove NAs from data for specific functions, but there are ways to replace or remove NAs in an object "permanently" (for the R session). 
+
+Below are the ways we showed previously to remove NAs from within specific filter, mutate, and summarize functions. 
+
+```{r remove NAs 1}
+#code copied from previous examples 
+#we remove all fish with missing weight data
+filter(fish, !is.na(Weight)) #we are filtering  out any values of NA in the Weight column
+#there are 3,487 observations containing weight data
+# Make sure the ! is before is.na or it will keep the NAs only
+
+#we remove all NAs in the weight column from the mean calculation
+summarize(fish, meanTL = mean(TL), meanW = mean(!is.na(Weight))) #another example of removing NAs for a a specific calculation
+# OR summarize(fish, meanTL = mean(TL), meanW = mean(Weight, na.rm= TRUE))
+
+#filter for just catfish
+catfish2 <- filter(fish, Species == "CNCF") #filter the fish dataset were column Species is CNCF (channel catfish)
+
+#we remove all NAs in the weight column from the percentwght calculation
+mutate(catfish2, percentwght = Weight / sum(Weight, na.rm = TRUE) * 100)# weight of each catfish divided by the sum of the weights times 100 to get percent
+
+```
+
+In your entire dataset, you can remove NAs, replace NAs with specific values, or change other values to be NAs. 
+
+```{r remove NAs 2}
+#the following code will create dataset fish2 that is missing all rows from fish that contained NA values in the weight column. 
+#This will remove all the other data in those rows as well, so be careful that this is the function you would like to use
+fish2<-fish %>%
+  filter(!is.na(`Weight`)) 
+```
+
+You can replace NA with a specified value. What if we wanted to make all NAs 0s? 
+
+```{r replace_na, eval=FALSE}
+fish$Weight #original data
+
+#replace NAs with 0
+fish$Weight %>% #specify the column of the data you want to replace
+  replace_na(0) #specify the value you want to replace the NAs with. 
+
+(weight <- fish %>%
+  mutate(Weight2 = replace_na(Weight, 0)) %>% #use mutate to replce NAs in the weight column by creating another column called Weight2
+  select(Weight, Weight2) %>%#select the two weight columns to compare what we did
+  slice(61:70))#slice the 61st to 70th rows to compare our NA changes
+```
+
+You can replace specific cell values with NAs. For example, if missing values are denoted as "x" or blanks, you can convert those cell contents to NAs. 
+
+```{r na_if, eval=FALSE}
+#let's reconvert the 0s from the Weight2 column back to NAs
+(weight$Weight2 <- na_if(weight$Weight2, 0)) #specify the data column and replace the 0s with NAs
+```
+
+---
+
+### Making Implicit Missing Data Explicit with Complete
+
+Sometimes we have implicit missing data if those data were never collected (e.g., you only sample some months and not others, you don't record 0s for catches in a net). These missing values are not readily obvious, but are important to consider when doing many analyses and visualizations. 
+
+What if we wanted to look at catches of all species across each site, including when no fish (0) were caught at a site?  Well, for this dataset, no 0 catches were recorded, so we would need to make this implicit missing data explicit. To make the data explicit, we need to determine which variables are associated with your level of comparison (across sites, across nets, across gear type). Within the LTRM dataset, lcode is the site This is the variable that distinguishes all sites from one another.
+
+```{r complete}
+
+fish2<- fish %>%
+  complete(lcode, Species, fill = list(catch=0)) #%>% #name the dataset, what variable we are interested in completing (Species and lcode, we want 0s to be there for the species that weren't collected at each site). With fill argument, want to change Catch. Within the fill argument, we want to specify the column we are filling our explicit missing values with and what the missing values should be. Here we want to fill the column with 0s (default is NA)
+
+glimpse(fish2)
+```
+
+We now have the catches of 0 fish per site explicitly stated in the dataset (we now have 5583 rows in the data). But if we look at the data where the new explicit missing values are, we can see that the columns throughout the dataset are all NA rather than filled in with the data that are specific to the site (lcode). 
+We can fill in the missing NA values with information from the sites without too much extra work. 
+
+```{r fill in missing data from complete}
+#we need to arrange the data first so the missing data can fill in with the correct information from the site code. So here, we want to arrange by the site code (lcode) and a missing variable because the fill function need a direction to fill in the missing information by.
+fish3 <- fish2 %>%
+#arrange by Site code and then a variable that contains missing data. This puts all of the rows with missing data at the bottom of the list for each site
+  arrange(lcode, barcode) %>%
+
+#use fill to fill in missing values throughout columns (except catch and removed)
+  fill(site:grp_wdth, .direction = "down") #specify the columns you need filled (site through grp_wdth) and specify the direction you are filling the data. because we arranged the data so the missing values are at the bottom of the list for each site, we fill in a down direction (top to bottom). 
+fish3
+
+```
+
+Now the data are complete for each species at each site and with no missing environmental or other variables. 
+
+You can easily combine the last two code chunks together into one code chunk to do everything in one go: 
+
+```{r complete and fill combined}
+fish4 <- fish %>%
+  complete(lcode, Species, fill = list(catch = 0)) %>%
+  arrange(lcode, barcode) %>%
+  fill(site:grp_wdth, .direction= "down")
+#gives the same information as separating the two previous code chunks
+
+```
+
+---
+
+
+### Lubridate
+
+The Lubridate package was created after the initial tidyverse packages, so it must be loaded separately from the tidyverse. It was created to handle easy date conversions. We'll dive into a couple useful functions on how to handle and convert dates. 
+
+The syntax for lubridate is to denote month, day, years as "m", "d", "y", and you can convert among date types (e.g. mdy, ymd, etc.). You can do the same for hours, minutes, and seconds which are denoted as "h", "m", "s". 
+
+
+```{r lubridate package}
+#load lubridate package
+library(lubridate)
+
+#convert the sdate variable from fish (character class) into a date variable using the mdy function (because sdate follows month, day, year)
+date <- mdy(fish$sdate)
+
+#our data are now a date
+glimpse(date) #converted to ymd as default
+
+datetime <- mdy_hms(paste(fish$sdate, fish$stime)) #use the paste function with the function mdy_hms to combine the date and time columns from the dataset into one
+
+
+#The mdy function also converts the date from a character to a Date type. This is important if you want to arrange your data by date. If you arrange character data, it is arranged by the first character (i.e., 10/01/2023 would come before 6/01/2023) because 1 comes before 6. 
+
+#If we arrange the fish dataset by sdate the first row is has a date of 10/1/2018
+fish %>%
+  arrange(sdate)
+
+#When we convert sdate to a Date type before arranging, the first row has a date of 6/15/2018
+
+fish %>%
+  mutate(sdate = mdy(sdate)) %>%
+  arrange(sdate)
+
+```
+
+Sometimes you just want part of the date-time continuum like the month or year. Instead of using other functions like "separate", you can easily obtain the data using lubridate functions. 
+
+```{r extracting parts of date_time, eval=FALSE}
+# Can use these to filter data, etc.
+
+month(date) #get the month
+day(date) #day
+year(date) #year
+
+second(datetime)
+minute(datetime)
+hour(datetime)
+
+```
+
+You can round dates and times to any number of variables including the following as examples: 
+
+* .5s/ .5 sec (half second)
+* sec/second/s (second)
+* minute/min/m (minute)
+* 5 mins (5 minutes)
+* hour (one hour)
+* day (a day)
+* week (one week)
+* month (one month)
+* bimonth (two months)
+* quarter (three months)
+* halfyear (six months)
+* year (one year)
+
+```{r round dates, eval=FALSE}
+
+round_date(date, unit = "week", week_start = getOption("lubridate.week.start", 3)) # this makes the week start of Sunday
+
+
+round_date(date, unit = "week") #round to the nearest week (up or down)
+
+floor_date(date, unit = "week") #round down to the nearest week (down)
+
+ceiling_date(date, unit = "week") #round up to the nearest week (up)
+
+
+round_date(datetime, unit = "hour") #round to the nearest hour
+
+```
+
+If you have data from multiple collaborators or different years, you likely will want the time zone to be correct and consistent among datasets if considering date-time in anyway. You can check the timezone of the dataset as well as coerce the data into a different timezone.
+
+```{r timezone, eval=FALSE}
+
+OlsonNames() #gives you all valid timezone names
+
+tz(datetime) #get timezone for the data
+
+#UTC = coordinated universal time for all time zones world-wide
+#the default if your data do not have a time zone is to say "UTC", so changing the timezone is helpful. 
+
+
+```
+
+```{r timezone conversion, eval=FALSE}
+
+#if you just want to change the timezone and not the time 
+force_tz(datetime, tzone = "America/Chicago") #keeps the same time, just changes to a new timezone
+#we know these data were collected in Central time, so coerced them to be central. 
+
+#convert to a new clock time in a different time zone
+with_tz(datetime, tzone = "America/Detroit") #changes the time to the new time zone based on the old timezone difference
+
+```
+
+Sometimes it's helpful to calculate time intervals between dates or times to know the duration of something. 
+
+```{r Time intervals, eval=FALSE}
+#use the function difftime to create time intervals between starting and ending date times
+#as a note, this is a baseR function. The Lubridate functions are more convoluted
+difftime(fish$ftime, fish$stime, tz = "America/Chicago", unit = "mins") #difference between the start time and finish time for samples
+#as we can see, these data are a bit wonky (supposed to be a difference of 15 for between each time)
+```
+
+---
+
+Exercise 3
+
+
+You will use the tools we have covered so far within `tidyverse` and will have approximately 40 minutes to complete the exercises and ask questions. If you finish early, explore the data on your own, walk around, etc.  
+
+---
+
+
+# Data Management
+
+Now we will continue using `tidyverse` functions to manipulate the data. 
+
+### Related Data
+
+Sometimes you need to combine data from multiple datasets. These data will be related by some variable they share. You can quickly combine these datasets together using the tidyverse. 
+
+You can do everything that the following functions do using `merge` in baseR; however, the tidyverse's functions are more straightforward to use. (Base R fcns may cause a lot of errors)
+
+There are several `join` functions including:
+* `inner_join` Unmatched data are excluded 
+* `right_join` All observations in 2nd (right) dataset are included even if not matched
+* `left_join`  All observations in 1st (left) dataset are included even if not matched
+* `full_join`  All observations in both right and left datasets are included even if not matched
+* `semi_join`  Only keeps matched observations 
+* `anti_join`  Only keeps observations without a match
+
+Below are simple examples to visualize these different joins.
+
+#### Innerjoin
+
+Innerjoin allows you to match observation based on a shared variable. Any unmatched data will be excluded from the final joined data.
+
+```{r  create a tibble}
+(tib1 <- tibble(banana = c(1,2,3),
+             x = c("x1","x2","x3")))
+(tib2 <- tibble(banana = c(1,2, 4),
+             y = c("y1","y2", "y4")))
+#we just created two datasets that have the same values for the variable "banana". We can join these two datasets(tibbles) together based on this banana variable (the column that is in common with both)
+```
+
+```{r innerjoin}
+(x <- inner_join(tib1, tib2, by = "banana"))
+#we see that our data are combined based on banana
+#any unmatched rows are not included, so y4 and x3 are not included
+```
+
+#### Outerjoins
+
+Outerjoins keep observations in one or both datasets, unlike innerjoins. 
+
+```{r leftjoin}
+#this is the most used join because you usually use it just to look up data from another table
+(left <- left_join(tib1, tib2)) #all observations in the first table (tib1) are kept, so  NA is in the place of the banana 3 row for y, because it is missing **** THIS IS MOST COMMONLY USED*****
+
+#left <- left_join(tib1, tib2, by= c("Species", "ID")) can be used to merge by multiple columns
+```
+
+```{r rightjoin}
+#Right joins only keep the observations in the 2nd table (tib1)
+(right <- right_join(tib1, tib2)) #here the banana 4 row is included because tib1 contains that value (the right dataset), but banana 3 row is excluded, because it is only in the tib2 dataset
+```
+
+```{r full join}
+#a full join keeps observations from both datasets/tables
+(full <- full_join(tib1, tib2))
+#we see four rows of data here, and the missing values are present in both x and y columns
+```
+
+```{r anti join}
+(anti1 <- anti_join(tib1, tib2))#antijoin keeps observations that are in the left dataset but not the right, so we only see x3 because that one was not in tib2
+
+(anti2 <- anti_join(tib2, tib1))#now we only see y4 because that row was not in tib1 
+
+```
+
+You can also join by columns and rows if you need to tack on data to a dataset. In baseR `cbind` and `rbind` both datasets must have either the same number of columns or the same number of rows. Using `bind_cols` and  `bind_rows`, you do not necessarily need to have the same number of rows and columns
+
+```{r bind_cols}
+cbind(tib1,tib2) #baseR code here works because there are the same number of rows in both tib datasets (cbind and rbind)
+(tib3 <- bind_cols(tib1, tib2)) #both tib1 and tib2 are added together into a new dataset
+```
+
+```{r bind_rows, eval=FALSE}
+rbind(tib1, tib2) #this code doesn't work because the column names in tib1 and tib2 are not the same
+
+(tib4 <- bind_rows(tib1, tib2)) #tib 1 and tib 2 are combined together by rows. You can notice that there are now 3 columns in the data instead of 2 in the original. 
+```
+
+---
+
+### Separate and Unite
+
+`Separate` takes apart multiple values that are in the same cell (i.e. same row and column). It will split the values based on a separator (e.g. /, :, ., ). 
+
+```{r separate}
+library(tidyr)
+(dates <- fish %>%
+  separate(fdate, into = c("Month", "Day", "Year")) %>%
+select(2:11))#the column that needs to be separated out, into is the argument to designate the names of the new columns in order of their separation. Can separate many values within a column if needed . Will not save the original column
+
+glimpse(dates)
+```
+
+Separate automatically separates values based on a non alphanumeric value, but you can specify the separator as well. In addition, it also maintains the column type of the original data. If we want to change the resulting columns (Month, Day, and Year), we can specify the `convert` argument which will change the new columns to the most likely column type R determines. 
+
+```{r separate specifications}
+glimpse(dates) #the sdate and fdate columns are characters, maybe we want them to be numeric
+(dates2 <- fish %>%
+   separate(fdate, into = c("Month", "Day", "Year"), sep = "/", convert = TRUE)) %>%
+  select(2:11)#just add the sep and convert arguments here
+#we now see that month, day, and year are integers, not characters
+glimpse(dates2)
+```
+
+#### Unite
+
+Unite is the opposite of separate. It allows you to combine multiple columns. 
+
+```{r unite}
+#let's recombine month, day, year into Date
+(dates3 <- dates2 %>%
+  unite(Date, Month, Day, Year, sep = "/"))#the new column name, first column to combine, 2nd column to combine,3rd column to combine, how you want to separate the values in the column
+#the default to separate the values in the column is to use the underscore, so you can specify the separator
+
+head(dates3)#The Date column is the same as the original fdate column. 
+```
+
+---
+
+# Summary Tables and Aesthetics
+
+If you have data where there are multiple factor entries in the same column and you want to separate each factor into its own column, you can do that with one easy function (`pivot_wider`). Or you can have multiple factor entries in their own columns and you want to combine them in one column (`pivot_longer`). However, this tidying should be done with data that have multiple factors. 
+
+```{r fish data summary}
+#let's create a summary table of the fish data
+#we only want 6 species of interest, so get rid of the other 2 species, find the number of observations by species and field station, and turn it into a tibble
+fish2 <- fish %>%
+  filter(Species != "LMBS" & Species != "WRMH") %>%
+  group_by(Species, fstation) %>% #group by multiple factors
+  dplyr::summarize(N = n()) %>%
+  as_tibble() #create a tibble which is a more easily manipulated version of a table in the tidyverse
+```
+
+
+You can `pivot_wider` out one column of data into several columns which may make certain functions doable or make a table more visually appealing.
+
+```{r pivot wider}
+library(tidyr) #within the tidyr package
+#make the tibble spread out to make it easier to read
+(observations <-fish2 %>%
+  pivot_wider(id_expand = FALSE, names_from = fstation, values_from = N))#id_expand means that if you have "missing data" from columns (no temp data from October-December), you can create empty rows that fill in the missing data (=TRUE) or omit rows with missing data (=FALSE). Similar to complete and fill
+#names_from is the column of variables we want to separate into distinct columns, automatically R will make columns for each of the factors within the column selected. 
+#Values_from is the column of data values that will be filled in the new columns' cells. 
+# Names from and values from are the most important bits to worry about
+
+```
+
+Now we will use several other `tidyverse` functions to change the look of the table we have made. We can use different renaming functions and factor renames to alter our text. These functions do not have to be used after a `group_by` and `summarize` combo, they can be used at any step of tidying data. 
+
+```{r rename spread columns}
+#let's rename the columns
+    (observations2 <- observations %>% 
+       dplyr::rename(`Pool 4` = `1`, `Pool 8` = `2`, `Pool 13` = `3`, `Pool 26` = `4`, `Open River` = `5`, `La Grange Pool` = `6`)) #(New name = old name) Tick marks have to be used when there are spaces in the name (same key as tilde)
+```
+
+
+```{r mutate data with factor recode}
+library(forcats) #within the forcats package (deals with factors)
+#lets also add sum column and row for totals
+observations2 <- observations2 %>%
+  # ungroup(observations2)%>% #need to ungroup the data to manipulate it. It is currently grouped because the ojbect "observations2" was created down the line from "fish2" which was a result of our group_by & summarize combo. This was only for older versions of dplyr and R
+    mutate(Total = `Pool 4` + `Pool 8` + `Pool 13` + `Pool 26` + `Open River` + `La Grange Pool`) %>% #use mutate to create a new column of data called "Total" and we will add all of the numbers from each field station together
+    mutate(Species = fct_recode(Species, #Now use mutate to rename the "factors" which are the species names. Here, we use fct_recode (factor recode)
+                             "Bullhead Minnow" = "BHMW", #New name = old name
+                             "Bluegill" = "BLGL", 
+                             "Channel Catfish" = "CNCF", 
+                             "Emerald Shiner" = "ERSN", 
+                             "Freshwater Drum" = "FWDM", 
+                             "Gizzard Shad" = "GZSD")) #column for each species
+
+```
+
+
+```{r factor collapse}
+#library(forcats)
+observations2 %>%
+  mutate(Species = fct_collapse(Species, 
+                             `Forage Fish` = c("Bullhead Minnow", "Emerald Shiner", "Gizzard Shad"), #name of new category, concatenated factors that will be in new category
+                             `Omnivore` = c("Channel Catfish"), 
+                             `Invertivore` = c("Bluegill", "Freshwater Drum")))
+
+#other factors not mentioned will stay the same
+#we can see that the rows for the new factors don't combine together, and that's because this tibble is created based on the grouping variables we first described. We would need to redo the tibble creation to make the factors actually collapse with one another. Do factor collapse before manipulating your data if you want to summarize/group by the new categories 
+```
+
+As we can see from the above chunks of code, `mutate()` has many roles. From creating new data columns, to renaming factors, to changing column names, as well as many we did not cover. The commonality with `mutate()` functions is that we specify the `mutate()` function first, provide a column of data we want to manipulate, and then specify another type of function. Our column can be a new column we make or it can be overwriting a column. 
+
+If you have multiple columns that you want to combine into one column, you can do that with the function pivot_longer. It is the opposite of pivot_wider.
+
+```{r pivot_longer}
+#Let's take all of the site columns we made using pivot_wider, and make them into a single column. Doing so will assign every site to each individual. The NAs mean that that individual was not in that site.
+
+obs3 <- observations2 %>% #pipe straight away
+  select(-Total) %>% #remove the total column since we don't need to have that gathered in our dataset. Select with a minus sign in front of the column you don't want will deselect the column
+pivot_longer(names_to = "Site", values_to = "N", 2:7) #names_to is the new column you are making as the "names" or ID for whatever data you want, so we want to make site into one column. Values_to is the information from the multiple columns you want to combine. This value will be a new column with whatever name you give it. the numbers are the numbers of the columns you wish to combine together. Here we are taking all of the site columns we made which are columns 2 through 7. The : means "through"
+obs3
+```
+
+
+--- 
+
+Exercise 4 
+
+
+You will use the tools we have covered so far within `tidyverse` and will have approximately 60 minutes to complete the exercises and ask questions. If you finish early, explore the data on your own, walk around, etc. 
+
+---
+
+
+# Synthesis
+
+For the final part of the workshop, we are going to answer a specific question together with the dataset. We're going to work through the steps needed to answer our question beginning with the raw data via live coding.  
+
+```{r load data again}
+
+fish <- read_csv("./2018 LTRM data.csv", col_types= list(weight =col_double()))
+
+```
+
+What proportion of fish in each guild were collected during each period using electrofishing?
+
+Guilds: 
+
+Forage fish = bullhead minnow, gizzard shad, emerald shiner
+
+Omnivore = bluegill, freshwater drum, channel catfish
+
+```{r}
+
+```
+
+
+---
+
+Exercise 5: Challenge Questions
+
+
+You will use the tools we have covered so far within `tidyverse` and will have approximately 60 minutes to complete the exercises and ask questions. If you finish early, explore the data on your own, walk around, etc. 
+

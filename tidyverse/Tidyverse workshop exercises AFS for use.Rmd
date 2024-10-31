@@ -1,0 +1,395 @@
+---
+title: "Tidyverse Workshop Exercises"
+author: "S.A. Valentine and G.R. Johnson"
+date: "05/31/2023"
+output: html_document
+---
+
+# Exercise 1
+
+You will use the Gillnet catches from 1930-1932 in Lake Michigan data to answer the following questions. You will use the tools we have covered so far within `dplyr` and will have approximately 40 minutes to complete the exercises and ask questions. If you finish early, explore the data on your own, walk around, etc.  
+
+Task 1: Read in data. How many columns and rows are there? 
+
+```{r exercise 1 task 1}
+library(tidyverse)
+
+l_gillnet <- read_csv("./Length.csv", show_col_types = FALSE) #read_csv
+#fish <- read_csv("./2018 LTRM data.csv", col_types = list(weight = col_double()))
+dim(l_gillnet) #63074 rows, 8 cols
+
+
+
+```
+
+
+Task 2: How many species are in the "Length" dataset?
+
+```{r exercise 1 task 2}
+unique(l_gillnet$SPECIES) # 12 species
+
+```
+
+Task 3 Rename the LENGTH column to "LENGTH_mm", then remove all columns except GN_EFFORT_ID, SPECIES, and LENGTH_mm.
+
+```{r exercise 1 task 3}
+#Part 1 rename column 
+l_gillnet <-rename(l_gillnet, Length_mm = LENGTH)
+
+#Part 2  use select to keep/remove columns of interest
+Length <- select(l_gillnet, GN_EFFORT_ID, SPECIES, Length_mm)
+
+```
+
+
+Task 4: How many different species were observed in Gillnet ID 42812? How many individuals from Gillnet ID 42833 were not species 307?
+
+```{r exercise 1 task 4}
+#filter by GN_Effort_ID
+id <- filter(Length, GN_EFFORT_ID == 42812)
+
+#unique 
+unique(Length$SPECIES)
+
+#Filter by species
+filter(Length, SPECIES != 307) #48,230 individuals
+
+```
+
+Task 5: Use "rename" to change the column names of SPECIES and LENGTH to SPECIES_CODE and LENGTH_MM respectively then use "filter to create a dataset that only includes records from GN_EFFORT_IDs 42834 and 42835 for SPECIES 213 and 127. How many rows are in this dataset? How many rows if you keep all species except 213 and 307
+
+```{r exercise 1 task 5}
+#Rename columns
+Length <- rename(Length, SPECIES_CODE = SPECIES)
+
+#Filter all rows that include GN ID and Species codes listed above
+effort <- filter(Length, (GN_EFFORT_ID == 42834 | GN_EFFORT_ID == 42835) & (SPECIES_CODE == 213 | SPECIES_CODE == 127))  #58
+
+# OR effort <- filter(Length, GN_EFFORT_ID %in% c(42834, 42835), SPECIES_CODE %in% c(213, 127)
+
+
+effort2 <- filter(Length, (GN_EFFORT_ID == 42834 | GN_EFFORT_ID == 42835) & (SPECIES_CODE != 213 & SPECIES_CODE != 307)) #17
+
+
+```
+
+
+Task 6: Add a new column to your length dataframe for lengths and weights in cm and kg respectively and populate the columns using mutate. Filter to remove all rows that have no weight data. What is the weight and species number of the heaviest fish (arrange)?
+
+```{r exercise 1 task 6}
+#Use mutate to create new columns Length_cm and Weight_kg
+l_gillnet <- mutate(l_gillnet, Length_cm = Length_mm /10)
+l_gillnet <- mutate(l_gillnet, Weight_kg = WEIGHT /1000)
+
+#Use filter to remove rows that have no weight data
+w <- filter(l_gillnet, !is.na(WEIGHT))
+
+#select for weight and species columns
+ 
+#arrange in descending order to get heaviest weight
+arrange(w, desc(Weight_kg)) #Weight and spp are 7.307 kg and spp 307
+
+```
+
+
+
+
+# Exercise 2
+
+You will use the tools we have covered so far within `dplyr` and will have approximately 40 minutes to complete the exercises and ask questions. If you finish early, explore the data on your own, walk around, etc.  
+
+
+Task 1: What is the total number of fish by species in each GN_EFFORT_ID? 
+What is the total number of individuals of species 307 for each gillnet ID? 
+Which gillnet effort has the greatest catch of species 307 (use arrange function)?
+
+```{r exercise 2 task 1}
+l_gillnet <- read_csv("./Length.csv", show_col_types = FALSE) 
+#total number of fish by species in each GN_EFFORT_ID
+l_gillnet %>% 
+  group_by(GN_EFFORT_ID, SPECIES) %>% #Group by gillnet and species
+  count() #summarize by total number using summarise with n() or count
+
+#total number of inds for each gillnet ID for species 307
+#use code from above and filter to include only records for species 307
+l_gillnet %>% 
+  group_by(GN_EFFORT_ID, SPECIES) %>% #Group by gillnet and species
+  count() %>% 
+  filter(SPECIES==307)
+
+  
+#Greatest catch of species 307
+#Same code as above and arrange by column representing number of fish.
+l_gillnet %>% 
+  group_by(GN_EFFORT_ID, SPECIES) %>% #Group by gillnet and species
+  count()  %>% 
+  filter(SPECIES==307) %>% 
+  arrange(desc(n))
+
+
+
+```
+
+
+Task 2: Which gillnet ID(s) has/have the greatest species richness (highest diversity/number of species) and what is that richness? How many gillnet IDs have a species richness of 3-7? 
+
+```{r exercise 2 task 2}
+
+l_gillnet %>% 
+  group_by(GN_EFFORT_ID, SPECIES) %>% #Group by GN_EFFORT_ID and SPECIES
+  summarize(N =n()) %>% #summarize data using any function I usually use n() to get total observations for each GN, Species combination, although the summarized column is not used.
+  group_by(GN_EFFORT_ID) %>% #Group by GN_EFFORT_ID
+  summarize(N= n()) %>% #Summarize using n() to get the number of rows for each gill net (each row should be a different species for each net ID after the first grouping.)
+  arrange(desc(N)) #Use arrange to get the highest richness at the top
+
+#Richness of 10 species found in 5 different gill nets
+
+
+###Partb
+# copy code from part a then filter 
+l <- l_gillnet %>% 
+  group_by(GN_EFFORT_ID, SPECIES) %>% #Group by GN_EFFORT_ID and SPECIES
+  summarize(N =n()) %>% #summarize data using any function I usually use n() to get total observations for each GN, Species combination, although the summarized column is not used.
+  group_by(GN_EFFORT_ID) %>% #Group by GN_EFFORT_ID
+  summarize(N= n()) %>% #Summarize using n() to get the number of rows for each gill net (each row should be a different species for each net ID after the first grouping.)
+  #arrange(desc(N)) %>% 
+  filter(between(N, 3, 7))
+
+length(unique(l$GN_EFFORT_ID)) #566
+
+
+```
+
+Task 3 What is the mean, max, and min Weight (in kg) as well as sample size for each species within gillnet ID 44365? 
+
+Hint: First, remove all rows without weight data. 
+
+What is the mean, max, and min Weight (in kg) as well as sample size for each species across all gillnets? 
+
+Which gillnet had the largest fish? Which species and how big was the largest fish in weight and length in cm? 
+
+```{r exercise 2 task 3}
+
+#Gillnet 44365
+l_gillnet
+
+#Remove NAs
+
+#Use mutate to convert weight to kg
+
+  #filter for Gillnet 44365
+
+#Group by Species
+
+#Use summarise to calculate the mean, max, and min 
+
+
+#All gillnets
+
+
+#Remove NAs
+
+#Use mutate to covnert weight to kg
+
+#Group by gill net ID and Species
+ 
+#Use summarise to calculate the mean, max, and min 
+
+#Arrange by weight to get the greatest weight
+
+#largest fish
+
+#same code as above but do length instead.
+
+```
+
+
+
+
+# Exercise 3 
+
+
+You will use the tools we have covered so far within `tidyverse` and will have approximately 40 minutes to complete the exercises and ask questions. If you finish early, explore the data on your own, walk around, etc. 
+
+
+Task 1 replace all of the NAs in the SEX column of the length dataset with "U" for unknown then use slice to look at rows 81-86. Note that SEX is a double type format but must be a character type to change NAs to a character "U"
+
+```{r}
+lgn <- read_csv("./Length.csv", show_col_types = FALSE) 
+#Use mutate with the replace_na function to change all NAs within the "SEX" column into unknowns (U) Convert SEX into a character using the as.character wrapper.
+lgn$SEX <- as.character(lgn$SEX)
+
+lgn %>%
+  mutate(Sex2 = replace_na(SEX, "U")) %>% #use mutate to replce NAs in the weight column by creating another column called Weight2
+  #select(Sex2) %>%#select the two weight columns to compare what we did
+  slice(81:86)
+
+
+  
+```
+
+Task 2 Convert LENGTH to cm, then Create a New column rounding Length_cm to the nearest 10 cm (i.e., round to the tens place). Create two additional new columns that round the fish lengths up (ceiling and down (floor)). Then use Select so the dataframe only includes the SPECIES column from the original dataset and the four new columns you created.
+
+```{r}
+
+#Use mutate to create new columns for Length_cm, Lengthbin, Ceiling, and Floor
+lgn <- mutate(lgn, Length_cm = LENGTH /10)
+
+lgn %>% 
+  mutate(lgn,
+         Length_cm = LENGTH /10,
+         Lengthbin = round(Length_cm, digits = -1),
+         Lengthfloor= floor(Length_cm),
+         LengthCeil= ceiling(Length_cm))
+ 
+#Use select to keep the desired columns
+
+```
+
+Task 3 Extract all data from the SiteData.csv file collected on the fifth day of the eighth month for all years. How many rows are in this dataset?
+
+```{r}
+
+SiteData <- read_csv("./SiteData.csv")
+
+SiteData %>% 
+  mutate(OP_DATE = mdy(OP_DATE)) # DIDN"T FINISH THIS
+
+#Use mutate to convert the OP_DATE column to a date type, then create new columns for Monthm Day, and Year.
+ 
+#Filter records to keep all records collected on in month 8 day 5.
+
+
+```
+
+
+Task 4 Complete the fulmar catch data so the sample size for all species codes is included and the rest of the columns are filled with the sample data. Hint: GN_EFFORT_ID is the column for site/sample. 
+```{r}
+
+#use complete
+
+#use fill
+```
+
+Task 5 What is the earliest and latest collection date during each year
+
+```{r}
+
+#Convert OP_DATE to a Date type and create a column populated with years extracted from the OP_DATE column.
+
+#Group by year 
+
+#Use min and max to calculate the earliest and latest collection dates
+
+dplyr::summarise()
+
+```
+
+----
+
+
+# Exercise 4
+
+
+You will use the tools we have covered so far within `tidyverse` and will have approximately 60 minutes to complete the exercises and ask questions. If you finish early, explore the data on your own, walk around, etc. 
+
+Task 1: Read in the SpeciesTable.csv file, then join this file to the fish lengths file by species code. Note that you will either need to specify which columns to merge because they have different names or you will need to change the name of one column to match the other. Then read in the SiteData.csv file and join that to your new dataframe with species names
+
+```{r Exercise 4 task 1}
+#Use read_csv to read in the species codes and site data .csv files and save them as named objects.
+sppt <- read_csv("./SpeciesTable.csv")
+SiteData
+
+comb <- left_join(lgn, sppt, by= c("SPECIES", "Code"))
+#use a join function, use by = c() around multiple column names when joining them
+
+#Join the site data to the created df
+
+
+```
+
+
+Task 2: Using the DF created in E4T1, Separate the Scientific Name into Genus and Species and OP_DATE into Month, Day, Year. Filter out any "unknown" Genera
+
+```{r Exercise 4 task 2}
+#separate scientific name into genus and species
+
+#Separate OP_Date into month, day, year
+
+#Filter to remove all unknown genera
+
+
+```
+
+
+Task 3: Using the dataframe from Exercise 4 task 2, determine which month had the highest catches of Lota Lota. What about Coregonus nigripinnis
+
+```{r Exercise 4 task 3}
+
+#Group by month, genus, species
+
+#Use summarise or count to get the total number of each group
+
+#Filter by species
+
+
+#For Coregonus nigripinnis
+
+
+```
+
+
+Task 4 Using the dataframe created in E4T1, separate Date into month, day, and year. Use group by, summarize to get the total number for each Scientific Name within each month, then use pivot wider to create new columns for each species. Teh result should be a table with the number of each species in each month. Replace all NAs in the `Coregonus Johannae` column with 0.
+
+```{r Exercise 4 Task 4}
+
+#Separate OP_Date into month day year
+
+#Group by month and scientific name
+
+#Get the total number of each group using summarize
+
+#Use pivot_wider to creat new columns for each species filling the values with the total number from the summarized column
+
+#use replace_na to replace the NAs in the Coregonus johannae column 
+
+
+
+```
+
+Task 5 Use factor collapse to create a new column where all fish with the word cisco in their common name are labelled as "Cisco" Then select only the common name column and your generated column and filter the new column for "Cisco."
+
+```{r Exercise 4 Task 5}
+#Use unique to get a list of all of the common names in the DF
+
+#Use mutate and fct_collapse to create a new column populated with "cisco" for all fish with "cisco on their name
+
+#Us eselect to keep the common name and grouped columns
+
+#Filter to keep all rows for cisco species.
+
+
+
+```
+
+
+
+Exercise 5: Challenge Questions
+
+You will use the tools we have covered so far within `tidyverse` and will have approximately 60 minutes to complete the exercises and ask questions. If you finish early, explore the data on your own, walk around, etc. 
+
+What is the proportional (or percent) catch by month for each species. What is the third greatest proportion (or percentage) of total fish that any species accounted for in any month. Which month and species?
+
+```{r Challenge 1}
+
+
+```
+
+
+What is the mean length (cm) and weight (kg) of each species by age and year. Remove any year, species, age combinations that have less than 10 individuals. Round means to two decimal places.
+
+```{r Challenge 2}
+
+
+```
+

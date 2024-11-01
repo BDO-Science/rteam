@@ -1,10 +1,12 @@
 library(tidyverse)
+library(ggridges)
 
 #set url for carcass data
 url <- 'https://www.cbr.washington.edu/sacramento/data/php/rpt/carcass_detail.php?sc=1&outputFormat=csv&year=2023&run=winter&clip=all&sex=all&condition=all'
 
 #read in data
 data <- read_csv(url)
+data2 <- read.csv(url)
 
 #############
 #filtering
@@ -85,4 +87,22 @@ graph <- ggplot(data, aes(x = forklength, fill = sex)) +
   geom_histogram(binwidth = 50, position = "identity", alpha = 0.6, color = "black") +
   labs(title = "Forklength for Males and Females", x = "Forklength", y = "Count") +
   scale_fill_manual(values = c("M" = "lightblue", "F" = "lightpink")) +
+  facet_wrap(~sex) +
   theme_minimal()
+graph
+
+
+graph2 <- data %>%
+  filter(sex == 'F') %>%
+  group_by(surveydate) %>%
+  summarize(n = n()) %>%
+  mutate(cumul = cumsum(n)) %>%
+  ggplot(aes(x = surveydate, y = cumul)) +
+  geom_line()
+graph2
+
+graph3 <- data %>%
+  filter(!is.na(sex)) %>%
+  ggplot(aes(x = forklength, y = sex, fill = sex)) +
+  geom_density_ridges()
+graph3

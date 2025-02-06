@@ -1,6 +1,8 @@
 # rteam
 
-Code from past Science Division R team trainings
+**Description:** Code from past Science Division R team trainings
+
+**Contributors:** Science Division Staff
 
 <ins>**Past Resources**</ins>
 

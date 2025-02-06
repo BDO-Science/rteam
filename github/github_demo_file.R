@@ -9,5 +9,5 @@ data <- iris %>%
 
 ggplot(data) +
   geom_point(aes(Petal_ratio, Sepal_ratio, color = Species)) +
-  labs(title = "Cool ratios") +
+  labs(title = "Super Cool ratios") +
   theme_bw()

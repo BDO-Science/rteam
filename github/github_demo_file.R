@@ -9,5 +9,11 @@ data <- iris %>%
 
 ggplot(data) +
   geom_point(aes(Petal_ratio, Sepal_ratio, color = Species)) +
-  labs(title = "Cool ratios") +
+  labs(title = "Super Coolio ratios") +
+  viridis::scale_color_viridis(discrete = TRUE) +
+  theme_bw()
+
+ggplot(beaver1) +
+  geom_boxplot(aes(factor(day), temp, fill = factor(activ))) +
+  labs(title = "Beaver temps") +
   theme_bw()

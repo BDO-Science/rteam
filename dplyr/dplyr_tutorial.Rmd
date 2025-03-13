@@ -1,0 +1,514 @@
+---
+title: "dplyr_tutorial"
+author: "lrm"
+date: "2025-01-09"
+output: html_document
+---
+
+Tutorial for R group 01.10.25 covering major uses of dplyr. This is adapted from the Tidyverse class materials (https://github.com/BDO-Science/rteam/blob/main/tidyverse/Data-Manipulation-using%20dplyr%20Honolulu%20AFS%20for%20use.Rmd)
+
+'Dplyr is the most commonly used tidyverse package for managing and initially summarizing data. We will discuss some of the functions. For more details on these functions ... check out the [dplyr webpage](dplyr.tidyverse.org/reference/)
+
+Commonly used functions in `dplyr`: 
+
+*`distinct()` - selects first occurrence of data
+
+*`rename()` - renames columns
+
+*`select()` - select columns
+
+*`filter()` - filters rows
+
+*`arrange()` - sort data
+
+*`mutate()` - adds new data/manipulations and keeps old data
+
+*`transmute()` - adds new data/manipulations but only keeps new data
+
+*`group_by()` - groups data
+
+*`summarize()` - summary functions 
+'
+
+```{r setup, include=FALSE}
+library(tidyverse)
+
+```
+
+## Loading Data
+
+Data should be loaded as a tibble. (This is technically readr)
+
+I will demonstrate using EDSM data from 1/6/25. 
+
+For reference:
+
+library(readr)
+-read comma delimited files
+read_csv(data)
+-read semicolon delimited files
+read_csv2(data)
+
+-read tab delimited files
+read_tsv(data)
+
+-read a file with any delimiter
+read_delim(data)
+
+-read fixed-width files
+read_fwf(data)
+
+-read a table with columns separated by white space
+read_table(data)
+
+
+```{r load LFS data}
+
+edsm <- read_csv("edsm_01_2025.csv")
+
+```
+
+## Learn about data tibble
+
+```{r}
+
+dim(edsm) #provides number of rows and columns
+length(edsm) #number of rows in dataset or column. Used for counting in functions as well
+str(edsm) #looks at the structure, numeric variables (num)
+glimpse(edsm) #similar to str, but a tidyverse function, notice that in #glimpse the factors are "dbl" meaning double which just refers to real numbers
+
+
+names(edsm) #provides the names of the columns
+head(edsm) #shows the first 6 rows of data
+tail(edsm) #shows the last 6 rows of data
+View(edsm) #opens the data in a new tab
+slice(edsm, 1:10) #selects the first 10 rows of data (one through 10)
+slice(edsm, 1, 10) #selects the first and 10th rows of data
+```
+
+### Distinct
+
+`distinct()` allows you to keep only rows with a unique combination of data. For example, if you have multiple rows with the same fish ID, and only want to keep one row from each fish ID to determine your sample size of unique fish, you could use distinct. 
+
+```{r distinct}
+#Do we have unique IDs for all rows in the fish data? 
+distinct(edsm, SampleID, .keep_all = TRUE)#specify the fish data, specify what column you want to have distinct values from, and then .keep_all = TRUE keeps all of the other data columns rather than just the barcode column
+
+#EDSM has unique barcodes per tow, so this isn't super helpful here, but you could use this to look at unique stations
+distinct(edsm, StationCode, .keep_all = FALSE)
+
+#The distinct function can also be used to remove duplicate rows. If you create a dataset from multiple sources that may have some overlapping data, you can remove duplicate rows by wrapping the dataframe within the distinct function
+distinct(edsm)
+
+# If you wanted to save this as a new dataset, uniqedsm <- distinct(edsm)
+```
+
+---
+
+### Rename
+
+`rename()` changes the names of data columns. 
+
+NOTE: `dplyr` doesn't save your results unless you save your changes as an object using `objectname <-`.
+
+```{r rename}
+rename(edsm, Species = OrganismCode) #new name, then old name, note we do not have a permanent name change because we did not save our change using the objectname <- syntax
+
+edsm <- rename(edsm, Species = OrganismCode, Count = SumOfCatchCount, FL = ForkLength) 
+# New column name = old col name
+# Can also use edsm <- dplyr::rename(edsm, c(Species = OrganismCode, Count=SumOfCatchCount, FL = ForkLength)) 
+names(edsm)
+```
+
+---
+
+### Select
+
+`select()` selects columns of your data. 
+
+```{r select, eval=F}
+species <- select(edsm, Species) #data first, then what column you want to select. Here we saved the Species column as an object called "species"
+View(species)#You can see that select only pulled out the column we wanted/specified
+```
+
+You can select multiple columns as well. (If you wanted to make a subset of your data)
+
+```{r select multiple, eval=FALSE}
+#select Species and FL columns
+speciesFL <- select(edsm, Species, FL) #just separate variable/column names using a comma 
+
+#select all columns in between StationCode and TideCode using ":"
+select(edsm, StationCode:TideCode) # ":" always means from-through in R. So this can read as select from the edsm dataset columns StationCode to TideCode
+
+#select columns 73 through 78
+select(edsm, 6:42) #same result as selecting Species:Weight
+
+select(edsm, c(1,5,6:42)) #add the pool and sampling period columns. We now include concatenate (c) with the "from-through" colon. Can also mix names and columns
+names(edsm) # will also give you col nums as well
+
+
+
+### Only select data we really are interested in:
+fish <- select(edsm, c(1:4, 6:7,43:47,49))
+```
+
+There are quite a few operators you can use with `select` to get certain columns:
+
+* `starts_with("J")` selects columns that begin with "J"
+* `ends_with("ber")` selects columns that end with "ber"
+* `contains("oct")` selects columns that have "oct" within their name
+* `matches("x.1")` selects columns with some sort of pattern
+* `num_range("x", 1:3)` selects columns matching x1, x2, and x3
+
+
+```{r select strings}
+select(edsm, ends_with("Code")) #there are multiple columns that end in "Code" in the dataset. Select all of these columns
+```
+
+You can also rearrange variables in your dataset using `everything()` if you want your data columns to look a certain way.
+
+```{r everything}
+#Let's put Species as the first column
+select(edsm, Species, everything()) # everything() will select everything else
+```
+
+---
+
+### Filter
+
+Filter selects rows based on some sort of specification. You can filter based on values or some sort of factor like species, volume size, date, etc. 
+
+```{r filter single}
+#We're going to filter first based on FL 
+
+large <- filter(fish, FL > 150) #name the new object "large", use the filter function, so specify dataframe first, then the variable  (FL) and what parameter of the variable (>150)
+glimpse(large) #you can see that there are 56 fish with a FL of more than 150 (56 observations/rows)
+
+#let's get the LFS only
+lfs <- filter(fish, Species == "LFS")#use the filter function. Again, specify the data frame, then the column we want to filter from (Species). Here, we want Longfin smelt only so we have to use a DOUBLE equal sign. If you use only one equal sign, it won't work.
+glimpse(lfs)
+#there are 210 Channel Catfish
+```
+
+You can use the following qualifiers to filter results: 
+
+* `>` greater than
+* `<` less than
+* `>=` greater than or equal to
+* `<=` less than or equal to
+* `!=` not equal to
+* `==` equal to
+* `near()` near to (can sometimes run into problems with `==`)
+* `between(column, x, y)` column of interest, number minimum, number maximum
+* `!is.na()` values that are not NAs
+If you want to filter for multiple results (e.g. y and x), you can use the following Boolean operators:
+
+* `y & !x` want y but not x (filters for data with y, excluding those with x)
+* `x & y` want y and want x (filters for data with both qualifiers only)
+* `x | y` want x or want y (filters for data with either x or y) May struggle with numeric factors
+* `%in% c(x,y)` including x or y (filters for data that includes either x or y) This one is the most helpful operators
+
+
+Let's practice with a couple of these Boolean operators. 
+
+```{r filter multiple}
+#let's say you want to filter for multiple things, Let's filter for smelts, so we want Longfin smelt and Delta smelt.
+
+#There are a couple ways to do this. 
+unique(fish$CommonName)
+
+
+#1. use | which means "or". So we are filtering for species that are Delta smelt or Longfin smelt
+smt <- filter(fish, Species == "DSM" | Species == "LFS")
+glimpse(smt)
+unique(smt$Species)
+
+
+#2. use != to remove the other species from the fish we want. != means "not including" (when you say not including you need to switch to & )
+smt1 <- filter(fish, Species != "TFS" & Species != "AMS" & Species != "WAG" & Species != "HCH" & Species != "EXP" & Species != "NOFISH" & Species != "RBT"& Species != "NAN" & Species != "RFK" & Species != "CHN" & Species != "ORSH" & Species != "MSS" & Species != "NA" & Species != "GSN" & Species != "MQF" & Species != "SPLT" & Species != "Cspp" & Species != "STB" & Species != "BGS" & Species != "BFK" & Species != "YFG" & Species != "LMB" & Species != "TSS"& Species != "SAPM" & Species != "PL" & Species != "BKS" & Species != "SHM"& Species != "RES" & Species != "BKB" & Species != "Pspp")
+glimpse(smt1)
+unique(smt1$Species)
+
+#3. use %in% (recommended)
+smt2 <- filter(fish, Species %in% c("DSM", "LFS")) #%in% means "including", we're filtering from Species and including the smelts. You need to use the c() function here
+glimpse(smt2)
+unique(smt2$Species)
+
+#4. The ! can be used with the %in% to remove a list of species
+smt3 <- filter(fish, !Species %in% c("TFS", "AMS", "WAG")) # ETC NOT GOING TO TYPE THEM ALL OUT AGAIN, but you get the idea
+glimpse(smt3)
+unique(smt3$Species)
+
+```
+
+We can see that all four objects (smt, smt1, smt2, and smt3) we just made are the same with only smelts. 
+
+What if we wanted to filter based on two or more columns?
+
+```{r filter multiple columns}
+#we can use the & for this
+#let's filter only hitch with a FL above 150
+hitch <- filter(fish, as.numeric(FL) > 150 & Species == "HCH")#specify dataframe, filter by Species, use &, filter by TL
+glimpse(hitch)
+```
+
+
+Sometimes you want to separate NA data from the rest of the dataset, it's easiest to use `is.na()` along with filter to do so. 
+
+```{r filter NA, eval=FALSE}
+filter(fish, !is.na(Weight)) #not relevant for edsm but you could filter out any values of NA in the Weight column
+
+# Make sure the ! is before is.na or it will keep the NAs only
+
+```
+
+Here's an example using the between function to keep all records between two values or exclude records between two values. Note that the between function uses <= and >= for the bounds.
+
+```{r filter between two numbers}
+
+#Use the between function within filter to identify the column and bounding values.
+Between <- filter(fish, between(FL, 25, 100))
+
+#Insert a "!" before the between function to indicate you do not want to keep records between these values.
+NotBetween <- filter(fish, !between(FL, 25, 100))
+
+Between$FL
+```
+
+
+Filter combinations
+
+There are a few nuances with using filter when switching between &, |, %in%, etc. Basically, order of operations and common sense govern the way the code should be written. 
+
+```{r filter combinations}
+#Filter all rows that include GN ID and Species codes listed above
+
+#we want to look at smelt from the stratum Susuin Bay and Suisun Marsh
+#using two %in%
+smtsuisun <- filter(fish, Species %in% c("DSM", "LFS") &
+                 Stratum %in% c("Suisun Marsh", "Suisun Bay"))
+#using %in% and |
+smtsuisun1 <- filter(fish, Species %in% c("DSM", "LFS") & (Stratum == "Suisun Marsh" | Stratum == "Suisun Bay")) #need to have parentheses around the | for Stratum because of order of operations
+#this tells R include the species DSM, LFS from those two Strata
+
+#without the parentheses around the | 
+smtsuisun2 <- filter(fish, Species %in% c("DSM", "LFS") & Stratum == "Suisun Marsh" | Stratum == "Suisun Bay") #this tells R to include the species DSM and LFS from Stratum Suisun Marsh or any data from Suisun Bay
+
+#without using %in% [LONG WAY]
+smtsuisun3 <- filter(fish, (Species == "DSM" | Species == "LFS") & (Stratum== "Suisun Marsh" | Stratum == "Suisun Bay")) #need to include two sets of parentheses around the groups of ORs (|) and separated by the &
+
+
+
+# We are not covering dates here, but useful to know
+### extra info:
+# Filter for the month of June
+filter(fish, str_detect(fdate, "^6")) #starts with 
+
+#Filter for only 2018
+filter(fish,str_detect(fdate, ".2018")) #ends with
+
+
+```
+
+---
+
+### Arrange
+
+Arrange will sort your data based on some sort of specification you want. Arrange defaults to sorting in ascending order, but you can specify using another argument if you want descending order. 
+
+```{r arrange}
+#arrange in ascending order of FL
+arrange(fish, FL)
+
+#arrange in descending order of Count
+arrange(fish, desc(Count))
+
+```
+
+---
+
+### Mutate
+
+Mutate lets you create new data columns using the data you already have and tacks on the data to your existing dataframe. This is a super easy way to multiply data columns together or use some sort of function on your data.
+
+```{r mutate}
+#Let's create a new column of FL that is in cm rather than the current mm
+fish <- mutate(fish, FL_cm = FL / 10) #call the data (fish), create a name for the new column (`FL(cm)`) and do whatever function you want (FL/10). 
+glimpse(fish) #we can see our new variable FL(cm), it stays in the dataset
+
+#can also use multiple columns within the dataset to create a new one
+edsm <- mutate(edsm, FlowDiff = FlowmeterEnd - FlowmeterStart) #this should be the same as the FlowmeterDifference column
+
+select(edsm, FlowDiff, FlowmeterDifference) #check to make sure the columns are the same
+```
+
+
+```{r mutate 2}
+#what percent of the total weight of catfish, does each catfish individually account for? 
+mutate(catfish2, percentwght = Weight / sum(Weight, na.rm=TRUE) * 100)# weight of each catfish divided by the sum of the weights times 100 to get percent
+# you can do this with percent spp composition, etc
+```
+
+---
+
+### Transmute
+
+Transmute does the same thing as mutate, but only keeps the new variables, not the original variables. 
+
+```{r transmute}
+edsm2 <- transmute(edsm, FlowDiff = FlowmeterEnd-FlowmeterStart, FL_cm = FL / 10) #same code as mutate, just add "trans"; this is a new dataset with only our two variables we made
+edsm2 #we see that the original data are not in the fish2 dataframe 
+```
+
+
+### Summarize
+
+Summarize allows you to calculate summaries of data, which can be really helpful for graphing and general summary stats of your data later. 
+
+```{r summarize}
+#what's the mean TL and Weight of all the fish? #remove NAs from the Weight column to get a mean
+#summarize is more powerful when it's combined with group_by, but we need to learn the pipe first
+```
+
+---
+
+### The pipe
+
+Before we continue with `group_by`, you need to know what the pipe is. The pipe is symbolized by `%>%`. It is a way in **ONLY** the tidyverse to do multiple things with data. Essentially if you use the pipe you are able to manipulate the data in one way and then continue to manipulate the data as many times as you want by just continuing to use the pipe. Additionally, you can pipe directly into `ggplot2` for graphing even though it doesn't use the pipe. There is no way to continue to manipulate data in Base R unless you create new objects of your data constantly or "add" onto data in plots and run the code together (this is messy and confusing). The pipe is very handy. 
+
+We'll do  an example of the pipe when we use `group_by` with `summarize`. 
+
+Shortcut for this is ctrl-shift-m %>% 
+
+---
+
+### Group by
+
+Group by is really helpful with summarize. It allows you to group your data based on some sort of factor. 
+
+```{r groupby}
+#Group the data by species, then calculate the mean FL of each species
+(fishgroup <- fish %>% #with the pipe, you specify the data you're using at the beginning. So here we specify that we are manipulating the fish dataset, then write the pipe %>%
+group_by(Species) %>% #next we are going to group the fish data by Species. This clumps the same species together. See here how we do not have to first specify the data argument, because it's already specified in the pipe. Write the pipe symbol again. 
+summarize(meanFL = round(mean(FL), digits = 2), #here, round the meanFL to make the output cleaner. We only have 2 decimals with digits=2
+          minFL = min(FL), 
+          maxFL = max(FL))) #Now we are going to use summarize to find the mean, max, and min FL of each fish species. Here, we named the mean manipulation "mean" by using "mean=". You do not have to name the summary
+```
+
+Now we have the average, max, and min of TL of each of our fish species in just a couple lines of code. 
+
+The group_by, summarize combination becomes really powerful when you want to summarize data by multiple factors.
+
+```{r group by multple factors}
+
+fish %>%
+  group_by(StationCode,#Group by Species within station. When grouping by multiple factors list the factors in order from largest to smallest (i.e., this example is species within station).
+           Species) %>%
+  summarise(meanFL = round(mean(FL), digits = 2), #here, round the meanTL to make the output cleaner. We only have 2 decimals with digits=2
+          minFL = min(FL), 
+          maxFL = max(FL))
+
+# if you have trouble with summarize not working, add dplyr::summarize because a package is masked
+```
+
+Notice with `summarize` that the other columns disappear from your final product. If you want to keep the other columns, you can use `group_by` with `mutate`. However, this combination keeps all rows and duplicates the new summarized rows in the columns. We can remove the duplicated rows with `distinct`. 
+
+```{r group by and mutate}
+fish %>%
+  group_by(StationCode,#Group by Species within station. When grouping by multiple factors list the factors in order from largest to smallest (i.e., this example is species within station.
+           Species) %>%
+  mutate(meanFL = round(mean(FL), digits = 2), #here, round the meanFL to make the output cleaner. We only have 2 decimals with digits=2
+          minFL = min(FL), 
+          maxFL = max(FL)) 
+```
+
+See how at the end of the dataset that we now have three new columns we created that are the "summarized" columns, but the values are repeated for each species and station. We can keep all other variables and maintain just the unique combinations of species and station using `distinct`. 
+
+```{r}
+fish %>%
+  group_by(StationCode,#Group by Species within station. When grouping by multiple factors list the factors in order from largest to smallest (i.e., this example is species within station).
+           Species) %>%
+  mutate(meanFL = round(mean(FL), digits = 2), #here, round the meanTL to make the output cleaner. We only have 2 decimals with digits=2
+          minFL = min(FL), 
+          maxFL = max(FL)) %>% 
+  distinct(Species, StationCode, .keep_all = TRUE) #specify the variable(s) that are the unique identifiers (Species, station), .keep_all = TRUE means it will keep all other columns
+```
+
+Now we have 546 rows, just like the the `group_by` `summarize` combination, but we have all other columns of data. 
+
+A good way to get number of observations in your data.
+
+```{r summarize n}
+#number of fish in each species within our dataset
+fish %>%
+  group_by(CommonName) %>% #group by species here or any factor you want (or multiple factors)
+  summarize(N = n()) #use n() with nothing in the parentheses to get the number of observations
+
+#OR
+fish %>% 
+  group_by(Species) %>%
+  count() #count automatically creates a variable called n that is the count of the data. Simpler to write than summarize(N=n())
+```
+
+```{r create proportion}
+#Often, we work with percents or proportions, so calculating them using mutate is beneficial
+
+#we want to calculate the proportion/percent of individuals in each species 
+fish %>% #take the fish dataset
+  group_by(Species) %>% #first group by species
+  count() %>% #count the number of individuals in each species
+  ungroup() %>% #ungroup the data so you can perform other manipulations/analyses on it. Group would only allow us to sum the BHMW and find a proportion within that group (which would equal 1). Ungroup allows us to determine the proportion from the entire dataset. Count retains groups in data, so need to ungroup below
+  mutate(prop = n / sum(n), #calculate proportion as the number of individuals in a species divide by the total number of individuals in the dataset. Count automatically labels this "n"
+         percent = n / sum(n) * 100) #calculate percent which is the proportion times 100. 
+
+#Using summarize instead of count
+fish %>%
+  group_by(Species) %>%
+  summarize(N = n()) %>%
+  mutate(prop = N / sum(N),
+         percent = N / sum(N) * 100)  # all of these can be saved as an object 
+```
+
+
+### Apply functions across multiple columns
+
+You can apply functions in `summarize` and `mutate` using the wrapper `across`. 
+
+```{r across with mutate}
+# Not going to cover this, but across is used when you want to do the same thing across multiple columns
+
+
+
+
+#this is what the original data look like
+fish %>%
+  select(Weight, TL_cm)
+
+#let's use round across both weight and length columns
+fish %>%
+  mutate(across(c(Weight, TL_cm), ~ round(.x, digits = -1))) %>% #within mutate, use the wrapper across on columns Weight and TL_cm (use c() to denote multiple columns). Use the ~ with the function round and specify the data spot in the round function as ".x" to denote the x should be whatever is in the "c()" function wrapper. (so weight and TL_cm). Digits =-1 rounds things to tens place. Good for binning!!
+  select(Weight, TL_cm)
+
+```
+
+```{r across with groupby summarize}
+#get mean and sd of weight and length using group by and summarize
+fish %>%
+  group_by(Species) %>%
+  summarize(across(c(Weight, TL_cm), list(mean = mean, sd = sd))) #specify the data columns in c(), and list the functions used. 
+#we notice that the results have NAs for the weight columns because of NAs in the data. You will need to change the function code slightly to add na.rm=TRUE to the data. 
+
+
+#get mean and sd of weight and length using group by and summarize
+fish %>%
+  group_by(Species) %>%
+  summarize(across(c(Weight, TL_cm), list(mean = ~ mean(.x, na.rm = TRUE), sd = ~ sd(.x, na.rm = TRUE)))) #specify the data columns in C(), list the multiple functions used. mean = is the name of the new column, ~ mean(.x, na.rm=TRUE) is the function to use. Allows you to specify the na.rm and other qualifiers to the function. Repeat for sd. The tilde always means "a function of"
+```
+
+
+```{r long example without across}
+#the above code can also be completed with the following code, but takes more effort to write. 
+fish %>%
+  group_by(Species) %>%
+  summarize(Weight_mean = mean(Weight, na.rm = TRUE), Weight_sd = sd(Weight, na.rm = TRUE), TL_cm_mean = mean(TL_cm), TL_cm_sd = sd(TL_cm)) #specify the functions independently in this scenario. 
+```

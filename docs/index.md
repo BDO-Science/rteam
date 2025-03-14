@@ -13,5 +13,6 @@ Go to [Rteam Github](https://github.com/BDO-Science/rteam) to see different demo
 -   **tidyverse** folder contains demonstration code for different tidyverse packages
 -   **web-scraping** resource for web scraping
 
+Link to code and figures you want to share:
 
-
+[X2 Demo](github-pages-demo-output.html).

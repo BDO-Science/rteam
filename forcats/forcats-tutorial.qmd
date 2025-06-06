@@ -1,0 +1,216 @@
+---
+title: "forcats-tutorial"
+author: "Cat"
+format: html
+editor: visual
+---
+
+# Background
+
+The goal of the forcats package is to provide a suite of useful tools that solve common problems with factors. Factors are useful when you have categorical data, variables that have a fixed and known set of values, and when you want to display character vectors in non-alphabetical order.
+
+[forcats functions](https://forcats.tidyverse.org/reference/index.html)
+
+```{r, warning = FALSE, message = FALSE}
+library(forcats)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(readr)
+library(EDIutils)
+```
+
+
+# 1. Read in data from 20-mm survey
+
+```{r, warning = FALSE, message = FALSE}
+wytype <- read_csv("WYType.csv")
+pkg <- read_data_entity_names(packageId = "edi.535.5")
+raw <- read_data_entity(packageId = "edi.535.5", entityId = pkg$entityId[1])
+
+fishies0 <- read_csv(raw)
+glimpse(fishies0)
+
+fishies <- fishies0 %>% select(Date, Station, Tide, Temp_surf, Sal_surf, Secchi, Taxa, Count) %>%
+  mutate(month = month(Date,label = TRUE),
+         year = year(Date)) %>%
+  group_by(year, month, Station, Tide, Taxa) %>%
+  summarize(
+    meanTemp = mean(Temp_surf, na.rm = TRUE),
+    meanSal = mean(Sal_surf,na.rm = TRUE),
+    meanSecchi = mean(Secchi,na.rm = TRUE),
+    Total = sum(Count)) %>%
+  ungroup() %>%
+  filter(Taxa!= "Unknown")
+```
+
+# 2. Functions
+
+Here are the fish data
+
+```{r}
+ggplot(fishies0, aes(y = Taxa)) + 
+  geom_bar()
+```
+
+## Sort by most common
+
+```{r}
+ggplot(fishies0, aes(y = fct_infreq(Taxa))) + 
+  geom_bar()
+```
+
+![Longfin Smelt](longfin.jpg)
+
+![Striped Bass](stb.jpg)
+
+![Yellowfin Goby](aflav.jpg)
+
+```{r}
+sorted <- fishies0 %>%
+  mutate(Taxa = fct_infreq(Taxa))
+
+levels(sorted$Taxa)
+
+abundant <- levels(sorted$Taxa)[1:8]
+common <- fishies0 %>% filter(Taxa %in% abundant)
+```
+
+```{r}
+ggplot(common, aes(y = fct_infreq(Taxa))) + 
+  geom_bar(aes(fill = Taxa)) +
+  viridis::scale_fill_viridis(discrete = TRUE) + 
+  theme_bw()
+```
+
+## Lump less common groups
+
+```{r}
+fishies0 %>%
+  mutate(Taxa = fct_lump(Taxa, n = 8)) %>%
+  count(Taxa, sort = TRUE)
+```
+
+```{r}
+fishies0 %>%
+  mutate(Taxa = fct_lump(Taxa, prop = 0.05)) %>%
+  count(Taxa, sort = TRUE)
+```
+
+```{r}
+fishies0 %>%
+  mutate(Taxa = fct_lump(Taxa, prop = 0.05, other_level = "uncommon_fishies")) %>%
+  count(Taxa, sort = TRUE)
+
+```
+
+```{r}
+# Create a factor with six levels
+fruit <- factor(c("apple", "banana", "orange", "grape", "peach", "plum"))
+
+# Collapse the last three levels into a single level called "other"
+fruit2 <- fct_collapse(fruit, other = c("grape", "peach", "plum"))
+
+table(fruit)
+table(fruit2)
+```
+
+## Ordering by another variable
+
+```{r}
+sal_taxa <- fishies0 %>%
+  mutate(Taxa = fct_lump(Taxa, n = 7)) %>%
+  group_by(Taxa) %>%
+  summarize(meanSal = mean(Sal_surf, na.rm = TRUE),
+            meanTemp = mean(Temp_surf, na.rm = TRUE)) %>%
+  ungroup()
+
+sal_taxa %>%
+  mutate(Taxa = fct_reorder(Taxa, meanSal)) %>%
+  ggplot(aes(x = Taxa, meanSal)) + 
+  geom_col(aes(fill = Taxa)) +
+  viridis::scale_fill_viridis(discrete = TRUE) + 
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 90))
+
+
+```
+
+## Manual releveling of factors
+
+```{r}
+library(ggplot2)
+
+# Create a bar plot of diamond cut
+ggplot(diamonds, aes(x = cut)) +
+  geom_bar()
+
+# Reorder the levels of the cut variable
+diamonds$cut <- fct_relevel(diamonds$cut, "Fair", "Good", "Very Good", "Premium", "Ideal")
+
+diamonds$cut <- fct_relevel(diamonds$cut,  "Good", after = 2)
+diamonds$cut <- fct_relevel(diamonds$cut,  "Good", after = Inf)
+levels(diamonds$cut)
+
+# Create a new bar plot with the reordered levels
+ggplot(diamonds, aes(x = cut)) +
+  geom_bar()
+
+
+```
+
+## Shifting by one
+
+```{r}
+library(forcats)
+
+levels(fishies$month)
+
+# Use fct_shift to shift the levels by 2 places
+fishies$shifted_month <- fct_shift(fishies$month, n = 2)
+levels(fishies$shifted_month)
+
+```
+
+## Adding additional values to the levels 
+
+```{r}
+fish_wy <- fishies %>%
+  filter(Taxa == "Spirinchus thaleichthys") %>%
+  mutate(WY = year) %>%
+  left_join(wytype) %>%
+  filter(WY >2010 & WY < 2020)
+```
+```{r}
+ggplot(fish_wy) + geom_boxplot(aes(WYType_Sac, Total, fill = month))+theme_bw()
+```
+
+```{r}
+fish_f1 <- fish_wy %>%
+  mutate(WYType_Sac = as.factor(WYType_Sac)) 
+
+levels(fish_f1$WYType_Sac)
+
+fish_f2 <- fish_wy %>%
+  mutate(WYType_Sac = as.factor(WYType_Sac)) %>%
+  mutate(WYType_Sac = fct_relevel(WYType_Sac, "C", "D", "BN", "W")) 
+levels(fish_f2$WYType_Sac)
+
+fish_f3 <- fish_wy %>%
+  mutate(WYType_Sac = as.factor(WYType_Sac)) %>%
+  mutate(WYType_Sac = fct_relevel(WYType_Sac, "C", "D", "BN", "W")) %>%
+  mutate(WYType_Sac = fct_expand(WYType_Sac, "AN", after = 3))
+levels(fish_f3$WYType_Sac)
+```
+
+## Other functions
+
+-   fct_inorder(): in order of appearance
+-   fct_inseq(): in order of numeric order
+-   fct_rev(): reverse factor level
+-   fct_unify(): make levels uniform between different columns, lists
+-   fct_cross(): combine levels from two or more factors to create new factor
+-   fct_c(): concatenate factors
+
+

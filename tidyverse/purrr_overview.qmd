@@ -1,0 +1,1084 @@
+---
+title: "purrr Tutorial"
+format: html
+editor: visual
+---
+
+# Introduction
+
+This tutorial demonstrates how common `for`‐loop patterns in R can be replaced with **`purrr`** functions for more concise, readable, and functional code.\
+We'll show:
+
+1.  A typical `for`‐loop example.\
+2.  The `purrr` equivalent (using `map`, `map2`, `pmap`, etc.).\
+3.  Explanatory comments at each step.
+
+```{r}
+# Load the purrr package (part of the tidyverse family)
+library(purrr)
+library(tibble)   # For creating tibbles in examples
+library(dplyr)    # For data manipulation where needed
+
+## 1. Summing a Vector Element‐wise
+
+### 1.1 Using a `for` Loop
+
+# Create two numeric vectors of equal length
+vec1 <- c(2, 4, 6, 8)
+vec2 <- c(1, 3, 5, 7)
+
+# Initialize an empty numeric vector to store results
+sum_for <- numeric(length(vec1))  
+
+# Loop through indices 1 through length(vec1)
+for (i in seq_along(vec1)) {
+  # For each index i:
+  #   - Add vec1[i] and vec2[i]
+  #   - Assign the result to sum_for[i]
+  sum_for[i] <- vec1[i] + vec2[i]
+}
+
+# Print the result of the for‐loop approach
+sum_for
+#> [1]  3  7 11 15
+```
+
+-   **Explanation**:
+
+    1.  We pre‐allocate `sum_for` so that R does not have to grow the vector on each iteration (efficient).
+    2.  `seq_along(vec1)` generates indices 1, 2, 3, 4.
+    3.  Inside the loop, we sum corresponding elements from `vec1` and `vec2`.
+
+### 1.2 Replacing with `purrr::map2()`
+
+```{r}
+# Use map2() to add vec1 and vec2 element‐wise.
+# map2(.x, .y, .f) applies a function .f to each pair (.x[i], .y[i]).
+sum_map2 <- map2_dbl(
+  .x = vec1,                   # First input vector
+  .y = vec2,                   # Second input vector
+  .f = ~ .x + .y               # Anonymous function: add .x and .y
+)
+
+# Print the result of the purrr approach
+sum_map2
+#> [1]  3  7 11 15
+```
+
+-   **Explanation**:
+
+    1.  `map2_dbl()` returns a **double vector** (numeric).
+    2.  The anonymous function `~ .x + .y` takes each pair of elements (.x from `vec1`, .y from `vec2`) and returns their sum.
+    3.  We don't need to pre‐allocate; `purrr` handles iteration internally.
+
+------------------------------------------------------------------------
+
+## 2. Applying a Function to Each Element of a List
+
+Suppose we have a list of numeric vectors, and want to compute the mean of each.
+
+### 2.1 Using a `for` Loop
+
+```{r}
+# Create a list of numeric vectors
+num_list <- list(
+  a = c(2, 4, 6),
+  b = c(10, 20, 30, 40),
+  c = c(5, 5, 5, 5, 5)
+)
+
+# Pre‐allocate an empty numeric vector of same length as num_list
+means_for <- numeric(length(num_list))
+
+# Optional: get the names to label the result later
+names(means_for) <- names(num_list)
+
+# Loop over the list indices
+for (i in seq_along(num_list)) {
+  # Compute the mean of the i-th element of num_list
+  means_for[i] <- mean(num_list[[i]], na.rm = TRUE)
+}
+
+# Print the result of the for‐loop approach
+means_for
+#>   a    b    c 
+#> 4.0 25.0  5.0 
+```
+
+-   **Explanation**:
+
+    1.  We store means in `means_for`.
+    2.  `num_list[[i]]` extracts the i‑th numeric vector from the list.
+    3.  `mean(..., na.rm = TRUE)` calculates the average (dropping NAs if present).
+
+### 2.2 Replacing with `purrr::map_dbl()`
+
+```{r}
+# Use map_dbl() to compute the mean of each element in num_list
+means_map <- map_dbl(
+  .x = num_list,               # Input list
+  .f = ~ mean(.x, na.rm = TRUE) # Anonymous function: mean of each vector
+)
+
+# Print the result of the purrr approach
+means_map
+#>   a    b    c 
+#> 4.0 25.0  5.0
+```
+
+-   **Explanation**:
+
+    1.  `map_dbl()` iterates over each element of `num_list`.
+    2.  The anonymous function `~ mean(.x, na.rm = TRUE)` is applied to each vector, returning its mean.
+    3.  We get a named numeric vector automatically (because `num_list` has names).
+
+------------------------------------------------------------------------
+
+## 3. Row‐wise Operations on a Data Frame
+
+Imagine a data frame of measurements for three variables, and we want to compute the row‐wise sum.
+
+```{r}
+# Create a simple data frame
+df <- tibble(
+  sample = paste0("S", 1:4),
+  x = c(2, 4, 6, 8),
+  y = c(1, 3, 5, 7),
+  z = c(10, 20, 30, 40)
+)
+df
+#> # A tibble: 4 × 4
+#>   sample     x     y     z
+#>   <chr>  <dbl> <dbl> <dbl>
+#> 1 S1         2     1    10
+#> 2 S2         4     3    20
+#> 3 S3         6     5    30
+#> 4 S4         8     7    40
+```
+
+### 3.1 Using a `for` Loop
+
+```{r}
+# Initialize an empty numeric vector to store row sums
+row_sums_for <- numeric(nrow(df))
+
+# Loop through row indices
+for (i in seq_len(nrow(df))) {
+  # Sum columns x, y, z for row i
+  row_sums_for[i] <- df$x[i] + df$y[i] + df$z[i]
+}
+
+# Add the results as a new column
+df_for_result <- df %>%
+  mutate(row_sum = row_sums_for)
+
+# Print the resulting data frame
+df_for_result
+#> # A tibble: 4 × 5
+#>   sample     x     y     z row_sum
+#>   <chr>  <dbl> <dbl> <dbl>   <dbl>
+#> 1 S1         2     1    10      13
+#> 2 S2         4     3    20      27
+#> 3 S3         6     5    30      41
+#> 4 S4         8     7    40      55
+```
+
+-   **Explanation**:
+
+    1.  We create `row_sums_for` to store sums.
+    2.  Loop index `i` runs from 1 to `nrow(df)`.
+    3.  Inside loop, we access each column by name and index.
+    4.  Finally, we bind the results as a new column.
+
+### 3.2 Replacing with `purrr::pmap_dbl()`
+
+```{r}
+# Use pmap_dbl() for row-wise operations.
+# pmap() expects a data frame or list of equal-length vectors, 
+# then applies a function to each row (as a list of column values).
+
+# Define a function to sum x, y, z for each row
+sum_xyz <- function(x, y, z) {
+  x + y + z
+}
+
+# Use pmap_dbl() over the selected columns
+row_sums_map <- pmap_dbl(
+  .l = df %>% select(x, y, z), # Input: list or data frame with named columns x, y, z
+  .f = sum_xyz                 # Function to sum x, y, z
+)
+
+# Add the results as a new column
+df_map_result <- df %>%
+  mutate(row_sum = row_sums_map)
+
+# Print the resulting data frame
+df_map_result
+#> # A tibble: 4 × 5
+#>   sample     x     y     z row_sum
+#>   <chr>  <dbl> <dbl> <dbl>   <dbl>
+#> 1 S1         2     1    10      13
+#> 2 S2         4     3    20      27
+#> 3 S3         6     5    30      41
+#> 4 S4         8     7    40      55
+```
+
+-   **Explanation**:
+
+    1.  We define `sum_xyz()` to accept three arguments: `x`, `y`, `z`.
+    2.  `pmap_dbl(.l = df %>% select(x, y, z), .f = sum_xyz)` applies `sum_xyz(x, y, z)` for each row.
+    3.  The output is a numeric vector of length 4 (one per row).
+    4.  We bind it to `df` via `mutate()`.
+
+------------------------------------------------------------------------
+
+## 4. Iterating over a List of File Paths (Dummy Example)
+
+Imagine we have a list of CSV file paths, and we want to read each file, perform a transformation, and store results. Here we'll simulate with in‐memory tibbles.
+
+```{r}
+# Simulate three small “files” as tibbles in a list
+file_list <- list(
+  file1 = tibble(name = c("A", "B"), value = c(10, 20)),
+  file2 = tibble(name = c("C", "D"), value = c(30, 40)),
+  file3 = tibble(name = c("E", "F"), value = c(50, 60))
+)
+
+# Suppose we want to:
+# 1. Read each file (already simulated here)
+# 2. Add a new column “value_doubled” = value * 2
+# 3. Store the modified tibbles in a new list
+```
+
+### 4.1 Using a `for` Loop
+
+```{r}
+# Initialize an empty list of the same length
+modified_for <- vector("list", length(file_list))
+names(modified_for) <- names(file_list)
+
+# Loop over the list of “files”
+for (i in seq_along(file_list)) {
+  # Extract the i-th tibble
+  df_i <- file_list[[i]]
+  
+  # Add a new column “value_doubled”
+  df_i$value_doubled <- df_i$value * 2
+  
+  # Store back into modified_for
+  modified_for[[i]] <- df_i
+}
+
+# Print the result of the for‐loop approach
+modified_for
+#> $file1
+#> # A tibble: 2 × 3
+#>   name  value value_doubled
+#>   <chr> <dbl>         <dbl>
+#> 1 A        10            20
+#> 2 B        20            40
+#>
+#> $file2
+#> # A tibble: 2 × 3
+#>   name  value value_doubled
+#>   <chr> <dbl>         <dbl>
+#> 1 C        30            60
+#> 2 D        40            80
+#>
+#> $file3
+#> # A tibble: 2 × 3
+#>   name  value value_doubled
+#>   <chr> <dbl>         <dbl>
+#> 1 E        50           100
+#> 2 F        60           120
+```
+
+-   **Explanation**:
+
+    1.  We create `modified_for` as an empty list to fill with modified tibbles.
+    2.  Loop index `i` picks each tibble from `file_list`.
+    3.  Inside the loop, we mutate (`df_i$value_doubled <- ...`) and store back.
+
+### 4.2 Replacing with `purrr::map()`
+
+```{r}
+# Use map() to iterate over file_list and return a modified tibble
+modified_map <- map(
+  file_list,                    # Input list of tibbles
+  ~ {                           # Anonymous function taking each tibble (.x)
+    df_i <- .x                 # Assign current tibble to df_i
+    df_i$value_doubled <- df_i$value * 2  # Add new column
+    df_i                        # Return modified tibble
+  }
+)
+
+# Print the result of the purrr approach
+modified_map
+#> $file1
+#> # A tibble: 2 × 3
+#>   name  value value_doubled
+#>   <chr> <dbl>         <dbl>
+#> 1 A        10            20
+#> 2 B        20            40
+#>
+#> $file2
+#> # A tibble: 2 × 3
+#>   name  value value_doubled
+#>   <chr> <dbl>         <dbl>
+#> 1 C        30            60
+#> 2 D        40            80
+#>
+#> $file3
+#> # A tibble: 2 × 3
+#>   name  value value_doubled
+#>   <chr> <dbl>         <dbl>
+#> 1 E        50           100
+#> 2 F        60           120
+```
+
+-   **Explanation**:
+
+    1.  `map(file_list, ~ { ... })` applies the anonymous block to each tibble.
+    2.  Inside the curly braces, `.x` is the current tibble. We assign it to `df_i`, add a column, and return `df_i`.
+    3.  The result is a list of modified tibbles, same names preserved.
+
+------------------------------------------------------------------------
+
+## 5. Handling Errors Gracefully
+
+Suppose one iteration might fail (e.g., dividing by zero). We want the loop to continue and capture failures.
+
+### 5.1 Using a `for` Loop with `tryCatch()`
+
+```{r}
+# Create a numeric vector including a zero
+num_vec <- list(10, 0, 5)
+
+# Initialize an empty list to store results (or errors)
+safe_for <- vector("list", length(num_vec))
+
+for (i in seq_along(num_vec)) {
+  # Use tryCatch to handle potential errors
+  safe_for[[i]] <- tryCatch(
+    {
+      # Attempt to take reciprocal
+      1 / num_vec[[i]]
+    },
+    error = function(e) {
+      # If error occurs, store a descriptive message
+      paste0("Error at index ", i, ": ", e$message)
+    }
+  )
+}
+
+# Print results (some will be numeric, some error messages)
+safe_for
+#> [[1]]
+#> [1] 0.1
+#>
+#> [[2]]
+#> [1] "Error at index 2: division by zero"
+#>
+#> [[3]]
+#> [1] 0.2
+```
+
+-   **Explanation**:
+
+    1.  `tryCatch({ ... }, error = function(e) { ... })` runs the risky expression.
+    2.  If division by zero occurs, we catch it and store a message in the list.
+
+### 5.2 Replacing with `purrr::possibly()` or `purrr::safely()`
+
+#### 5.2.1 Using `possibly()`
+
+```{r}
+# Define a “possibly” version of reciprocal() that returns NA on error
+safe_reciprocal <- possibly(
+  .f = function(x) 1 / x,    # Function that might error
+  otherwise = NA_real_       # Return NA instead of error
+)
+
+# Apply to each element via map_dbl (returns numeric, with NAs)
+safe_map <- map_dbl(num_vec, safe_reciprocal)
+
+# Print result
+safe_map
+#> [1] 0.1   NA 0.2
+```
+
+-   **Explanation**:
+
+    1.  `possibly(.f, otherwise)` wraps `.f` so that if `.f` errors, it returns `otherwise`.
+    2.  `map_dbl()` iterates over `num_vec`, producing a double vector (with NA where errors occurred).
+
+#### 5.2.2 Using `safely()`
+
+```{r}
+# Define a “safely” version of reciprocal() that returns a list of (result, error)
+safe_reciprocal2 <- safely(
+  .f = function(x) 1 / x
+)
+
+# Apply to each element via map (returns a list of lists)
+safe2_map <- map(num_vec, safe_reciprocal2)
+
+# Inspect results: each element has $result or $error
+safe2_map
+#> [[1]]
+#> $result
+#> [1] 0.1
+#>
+#> $error
+#> NULL
+#>
+#>
+#> [[2]]
+#> $result
+#> NULL
+#>
+#> $error
+#> <simpleError in 1/x: division by zero>
+#>
+#>
+#> [[3]]
+#> $result
+#> [1] 0.2
+#>
+#> $error
+#> NULL
+```
+
+-   **Explanation**:
+
+    1.  `safely(.f)` wraps `.f` so that each call returns a list with two elements: `$result` (or `NULL` if error) and `$error` (or `NULL` if successful).
+    2.  We then inspect each element to see whether an error occurred.
+
+------------------------------------------------------------------------
+
+## 6. Recap & Best Practices
+
+1.  **Pre‐allocation vs. Purrr**
+
+    -   In a classic `for`‐loop, you often pre‐allocate a vector or list to store results.
+    -   With `purrr`, you simply call a `map*()` function; no explicit pre‐allocation needed.
+
+2.  **Naming Conventions**
+
+    -   `map()` returns a **list**.
+    -   `map_dbl()`, `map_int()`, `map_chr()`, `map_lgl()` return **atomic vectors** of a specified type.
+    -   `map_df()` or `map_dfr()` can return a **data frame** by binding row‐wise.
+
+3.  **Selecting the Right Map Variant**
+
+    -   **Single input** → `map()`, `map_dbl()`, etc.
+    -   **Two inputs** → `map2()`, `map2_dbl()`, etc.
+    -   **Multiple inputs** → `pmap()`, `pmap_dbl()`, etc.
+
+4.  **Error Handling**
+
+    -   Use `possibly()` when you want a default "fallback" value on error.
+    -   Use `safely()` when you want to capture both success and error information.
+
+5.  **Side Effects**
+
+    -   Use `walk()` (instead of `map()`) when you only care about side‐effects (e.g., printing, writing files), because `walk()` returns the original input invisibly.
+
+------------------------------------------------------------------------
+
+### End of Tutorial
+
+You can mix and match these patterns to replace most of your iterative `for`‐loops with `purrr`, resulting in code that is often more concise, expressive, and less error‐prone.
+
+Below are several other `purrr`‐centric patterns and functions that can enhance your tutorial. Each example is heavily commented so you can drop it into your Quarto document and explain step‐by‐step. Feel free to pick and choose which sections best fit your audience.
+
+------------------------------------------------------------------------
+
+## 1. Index‐and‐Name‐Aware Iteration with `imap()`
+
+Sometimes you need both the element *and* its name or index inside a list. Instead of a `for` loop over indices, use `imap()`.
+
+```{r}
+# Example list of numeric vectors, named by group
+score_list <- list(
+  math     = c(90, 85, 78),
+  science  = c(88, 92, 81),
+  english  = c(75, 80, 85)
+)
+
+# Goal: For each subject, compute the average and return a named result
+# with “Subject: <average>” text. A for‐loop might look like:
+#
+#   avg_for <- list()
+#   for (i in seq_along(score_list)) {
+#     subj_name <- names(score_list)[i]
+#     avg_val   <- mean(score_list[[i]])
+#     avg_for[[subj_name]] <- paste0(subj_name, ": ", round(avg_val, 1))
+#   }
+#
+# The purrr way using imap():
+
+avg_imap <- imap_chr(
+  .x = score_list, 
+  .f = ~ {
+    # .x is the numeric vector for the current subject
+    # .y is the name (e.g., "math", "science", "english")
+    avg_val <- mean(.x, na.rm = TRUE)
+    # Return a single string, e.g., "math: 84.3"
+    paste0(.y, ": ", round(avg_val, 1))
+  }
+)
+
+# Print:
+avg_imap
+#>   math science english 
+#> "math: 84.3"   "science: 87.0"  "english: 80.0"
+```
+
+-   **Why use `imap()`?**
+
+    -   The anonymous function receives two positional arguments:
+
+        -   `.x` = the *value* (list element)
+        -   `.y` = the *name* or *index* of that element
+
+    -   `imap_chr()` returns a character vector (one element per list item).
+
+------------------------------------------------------------------------
+
+## 2. Conditional Mapping with `map_if()` and `map_at()`
+
+Instead of writing a loop with an `if` inside, `map_if()` and `map_at()` let you apply functions only to elements that satisfy a predicate or are in certain positions/names.
+
+### 2.1 `map_if()`
+
+```{r}
+# Suppose we have a mixed list of numeric and character elements:
+mixed_list <- list(
+  a = c(1, 2, 3),
+  b = "hello",
+  c = c(4, 5),
+  d = "world"
+)
+
+# Goal: If an element is numeric, multiply by 10; otherwise, leave as is.
+# For‐loop approach might be:
+#
+#   modified_for <- vector("list", length(mixed_list))
+#   names(modified_for) <- names(mixed_list)
+#   for (i in seq_along(mixed_list)) {
+#     elem <- mixed_list[[i]]
+#     if (is.numeric(elem)) {
+#       modified_for[[i]] <- elem * 10
+#     } else {
+#       modified_for[[i]] <- elem
+#     }
+#   }
+
+# Purrr approach using map_if():
+modified_map_if <- map_if(
+  .x = mixed_list,
+  .p = is.numeric,        # predicate: “is this element numeric?”
+  .f = ~ .x * 10          # if TRUE: multiply by 10; if FALSE: leave alone
+)
+
+modified_map_if
+#> $a
+#> [1] 10 20 30
+#>
+#> $b
+#> [1] "hello"
+#>
+#> $c
+#> [1] 40 50
+#>
+#> $d
+#> [1] "world"
+```
+
+-   **Key points**:
+
+    -   `.p` can be a function (like `is.numeric`) or a lambda (`~ length(.x) > 1`).
+    -   Only elements where `.p(.x)` returns `TRUE` are transformed by `.f`.
+
+### 2.2 `map_at()`
+
+```{r}
+# Suppose we want to apply a function only to certain *positions* or *names*.
+# Take the same mixed_list and only multiply “a” and “c” by 100,
+# leaving “b” and “d” alone.
+
+# .at = positions (numeric indices) or names (character) to target
+modified_map_at <- map_at(
+  .x = mixed_list,
+  .at = c("a", "c"),    # only these two list elements are changed
+  .f = ~ .x * 100       # multiply by 100
+)
+
+modified_map_at
+#> $a
+#> [1] 100 200 300
+#>
+#> $b
+#> [1] "hello"
+#>
+#> $c
+#> [1] 400 500
+#>
+#> $d
+#> [1] "world"
+```
+
+-   **Key points**:
+
+    -   `.at` can be a *numeric* vector of positions or a *character* vector of names.
+    -   Only those elements are sent through `.f`.
+
+------------------------------------------------------------------------
+
+## 3. Working with Nested Lists: `transpose()`, `pluck()`, & `modify()`
+
+### 3.1 `transpose()`
+
+If you have a "list of lists" where each inner list shares the same structure (same sub‐element names), `transpose()` swaps rows↔columns.
+
+```{r}
+# Imagine a list of student records, each with “name” and “scores”
+students <- list(
+  list(name = "Alice", scores = c(80, 90, 85)),
+  list(name = "Bob",   scores = c(75, 85, 95)),
+  list(name = "Carol", scores = c(92, 88, 84))
+)
+
+# If we transpose, we get a list whose elements are “list of all names” and “list of all scores”
+students_transposed <- transpose(students)
+
+# Now:
+# students_transposed$name  is a list: ["Alice", "Bob", "Carol"]
+# students_transposed$scores is a list: [c(80, 90, 85), c(75, 85, 95), c(92, 88, 84)]
+students_transposed
+#> $name
+#> [[1]]
+#> [1] "Alice"
+#>
+#> [[2]]
+#> [1] "Bob"
+#>
+#> [[3]]
+#> [1] "Carol"
+#>
+#> $scores
+#> [[1]]
+#> [1] 80 90 85
+#>
+#> [[2]]
+#> [1] 75 85 95
+#>
+#> [[3]]
+#> [1] 92 88 84
+```
+
+-   **Why use this?**
+
+    -   It's handy when you want, for instance, a single vector of all names or to operate on all "scores" at once.
+
+### 3.2 `pluck()`
+
+`pluck()` extracts a single element from a nested list by position or by name, without multiple `[[ ]]` calls.
+
+```{r}
+# Using the same “students” list:
+# Suppose we want Bob’s second score. 
+# With base R: students[[2]][["scores"]][2]
+# With purrr::pluck():
+
+bob_second_score <- pluck(students, 2, "scores", 2)
+bob_second_score
+#> [1] 85
+```
+
+-   **Key points**:
+
+    -   Each argument after the list is either an *index* (numeric) or a *name* (character).
+    -   `pluck()` returns `NULL` instead of error if the element is missing (unless you wrap in `strict = TRUE`).
+
+### 3.3 `modify()` (and `modify_at()`)
+
+Instead of `map()`, which returns a brand‐new list, `modify()` returns the same list structure with only certain elements updated in‐place.
+
+```{r}
+# Start with a list of numeric vectors:
+vecs <- list(a = 1:3, b = 4:6, c = 7:9)
+
+# Suppose we want to add 100 to *every* element in the list,
+# but keep the same list structure (including names).
+modified_modify <- modify(
+  .x = vecs,
+  .f = ~ .x + 100
+)
+
+modified_modify
+#> $a
+#> [1] 101 102 103
+#>
+#> $b
+#> [1] 104 105 106
+#>
+#> $c
+#> [1] 107 108 109
+
+# If we only want to modify “b” and “c”, use modify_at():
+modified_modify_at <- modify_at(
+  .x = vecs,
+  .at = c("b", "c"),
+  .f = ~ .x * 2
+)
+
+modified_modify_at
+#> $a
+#> [1] 1 2 3
+#>
+#> $b
+#> [1] 8 10 12
+#>
+#> $c
+#> [1] 14 16 18
+```
+
+-   **Difference vs. `map()`**:
+
+    -   `map()` always returns a brand new list;
+    -   `modify()` preserves any non‐targeted elements as they were and only changes those you specify.
+
+------------------------------------------------------------------------
+
+## 4. Reducing & Accumulating with `reduce()` and `accumulate()`
+
+When you need to combine all elements of a list into a single output (e.g., summing many values, merging data frames), `reduce()` is your friend. If you want to see intermediate results at each step, use `accumulate()`.
+
+### 4.1 `reduce()`
+
+```{r}
+# Suppose we have a list of numeric vectors and want the total sum of all elements
+num_list <- list(
+  c(1, 2, 3),
+  c(4, 5, 6),
+  c(7, 8, 9)
+)
+
+# For‐loop way: 
+#   total <- 0
+#   for (v in num_list) {
+#     total <- total + sum(v)
+#   }
+
+# purrr:
+total_reduce <- reduce(
+  num_list,
+  ~ .x + sum(.y)   # .x is the accumulating value, .y is the next element in num_list
+)
+total_reduce
+#> [1] 45
+```
+
+-   **Explanation**:
+
+    1.  The first call sets `.x = num_list[[1]]` (i.e., the vector c(1,2,3)).
+    2.  The function returns `.x + sum(.y)`, so result becomes 6.
+    3.  Next iteration: `.x = 6`, `.y = c(4,5,6)`, result = 6 + 15 = 21.
+    4.  Next: `.x = 21`, `.y = c(7,8,9)`, result = 21 + 24 = 45.
+
+### 4.2 `accumulate()`
+
+```{r}
+# Same list, but we want the running total after each vector is processed
+running_totals <- accumulate(
+  num_list,
+  ~ .x + sum(.y)
+)
+running_totals
+#> [[1]]
+#> [1] 6
+#>
+#> [[2]]
+#> [1] 21
+#>
+#> [[3]]
+#> [1] 45
+```
+
+-   **Key points**:
+
+    -   `accumulate()` returns a list of length equal to the input, showing the intermediate results.
+    -   Useful for debugging or plotting how a cumulative value evolves.
+
+------------------------------------------------------------------------
+
+## 5. Working with Multiple Functions: `invoke_map()`
+
+If you have a set of functions you want to apply to the same input, `invoke_map()` (or its newer name `map2()`‐style with a list of functions) can help.
+
+```{r}
+# Create a simple numeric vector
+x <- 1:5
+
+# Suppose we want to compute its mean, sum, and maximum.
+# Gather the functions in a list:
+funs <- list(
+  get_mean = mean,
+  get_sum  = sum,
+  get_max  = max
+)
+
+# invoke_map() will call each function on x, returning a list of results
+results <- invoke_map(funs, x)
+
+results
+#> $get_mean
+#> [1] 3
+#>
+#> $get_sum
+#> [1] 15
+#>
+#> $get_max
+#> [1] 5
+```
+
+-   **Why use this?**
+
+    -   You don't have to write three separate lines like `mean(x)`, `sum(x)`, `max(x)`.
+    -   If you had a *corresponding list of arguments*, you could pass them in parallel.
+
+------------------------------------------------------------------------
+
+## 6. Repetition with `rerun()`
+
+If you need to run the same expression multiple times (e.g., simulation, random sampling), `rerun()` makes it trivial.
+
+```{r}
+# Simulate rolling a six‐sided die 3 times, 5 different times
+# For‐loop way:
+#   rolls_list <- vector("list", 5)
+#   for (i in 1:5) {
+#     rolls_list[[i]] <- sample(1:6, size = 3, replace = TRUE)
+#   }
+
+# purrr:
+rolls_rerun <- rerun(
+  5,                     # Number of times to repeat
+  sample(1:6, 3, TRUE)   # Expression to evaluate each time
+)
+
+rolls_rerun
+#> [[1]]
+#> [1] 2 5 3
+#>
+#> [[2]]
+#> [1] 4 6 1
+#>
+#> [[3]]
+#> [1] 2 2 6
+#>
+#> [[4]]
+#> [1] 3 1 6
+#>
+#> [[5]]
+#> [1] 1 6 2
+```
+
+-   **Key points**:
+
+    -   Always returns a **list**, even if the expression returns a vector.
+    -   Handy for Monte Carlo or repeated sampling tasks.
+
+------------------------------------------------------------------------
+
+## 7. Predicate-based Filtering & Searching: `keep()`, `discard()`, `detect()`, `some()`, `every()`
+
+These functions let you find or filter list elements by a logical condition---no cumbersome `if` inside a loop.
+
+```{r}
+# Example list of integers
+int_list <- list(a = 3, b = 10, c = 7, d = 15, e = 2)
+
+# 7.1 keep(): Retain elements where the predicate is TRUE
+# Keep only numbers > 5
+kept <- keep(int_list, ~ .x > 5)
+kept
+#> $b
+#> [1] 10
+#>
+#> $c
+#> [1] 7
+#>
+#> $d
+#> [1] 15
+
+# 7.2 discard(): Remove elements where the predicate is TRUE
+# Discard numbers <= 5
+discarded <- discard(int_list, ~ .x <= 5)
+discarded
+#> $b
+#> [1] 10
+#>
+#> $c
+#> [1] 7
+#>
+#> $d
+#> [1] 15
+
+# 7.3 detect(): Find the *first* element where predicate is TRUE
+# Detect first number divisible by 3
+detected <- detect(int_list, ~ .x %% 3 == 0)
+detected
+#> [1] 3  # that’s ‘a’ because 3 %% 3 == 0
+
+# 7.4 some(): Did *any* element satisfy the predicate?
+any_gt_12 <- some(int_list, ~ .x > 12)
+any_gt_12
+#> [1] TRUE
+
+# 7.5 every(): Did *all* elements satisfy the predicate?
+all_positive <- every(int_list, ~ .x > 0)
+all_positive
+#> [1] TRUE
+```
+
+-   **Key points**:
+
+    -   `keep()` / `discard()` return a **filtered list**.
+    -   `detect()` returns a **single element** (not a list).
+    -   `some()` / `every()` return a **logical** indicating if any/all elements pass the test.
+
+------------------------------------------------------------------------
+
+## 8. Row‐wise / Group‐wise Mapping in Tibbles: Using `map()` Inside `mutate()`
+
+You can combine `purrr` with `dplyr` to do more complex per‐row or per‐group computations. Here's a quick illustration:
+
+```{r}
+library(dplyr)
+
+# Example data frame of students and their scores (in list‐column form)
+df_scores <- tibble(
+  student = c("Alice", "Bob", "Carol"),
+  raw_scores = list(
+    c(80, 85, 90, 88),
+    c(75, 78, 80, 82),
+    c(92, 95, 94, 90)
+  )
+)
+
+# We want to compute, for each student:
+#   1) average score
+#   2) a logical flag: did they ever score below 80?
+
+df_scored <- df_scores %>%
+  mutate(
+    avg_score = map_dbl(raw_scores, ~ mean(.x)),
+    ever_below_80 = map_lgl(raw_scores, ~ any(.x < 80))
+  )
+
+df_scored
+#> # A tibble: 3 × 4
+#>   student raw_scores   avg_score ever_below_80
+#>   <chr>   <list>           <dbl> <lgl>        
+#> 1 Alice   <dbl [4]>         85.8 FALSE        
+#> 2 Bob     <dbl [4]>         78.8 TRUE         
+#> 3 Carol   <dbl [4]>         92.8 FALSE        
+```
+
+-   **Why this matters**:
+
+    -   Instead of unnesting and re‐nesting or writing a loop, you can keep raw data in a list‐column and compute summaries in a single `mutate()` using `map_dbl()` / `map_lgl()`.
+
+------------------------------------------------------------------------
+
+## 9. Combining Multiple Lists: `map2()` and `pmap()`
+
+We already saw `map2()` used for two vectors. You can also use a named list of arguments (`pmap()`) when you have more than two.
+
+```{r}
+# Suppose we have three lists that represent parameters to a function
+params <- list(
+  alpha = list(1, 2, 3),
+  beta  = list(10, 20, 30),
+  gamma = list(100, 200, 300)
+)
+
+# And a function that takes alpha, beta, gamma and returns alpha*beta + gamma
+f_calc <- function(alpha, beta, gamma) {
+  alpha * beta + gamma
+}
+
+# If we want to run f_calc(alpha, beta, gamma) for each set (position-wise),
+# we can use pmap():
+results_pmap <- pmap_dbl(
+  .l = params,     # named list of equal-length lists
+  .f = f_calc      # function expecting alpha, beta, gamma
+)
+
+# Print results:
+results_pmap
+#> [1] 110 240 390
+```
+
+-   **Key points**:
+
+    -   The named elements of `.l` must match the function's formal arguments.
+    -   `pmap_dbl()` returns a numeric vector because we specified `_dbl`.
+
+------------------------------------------------------------------------
+
+## 10. Parallel Mapping with `future_map()` (if you want a "bonus" advanced topic)
+
+If your team is interested in speeding up computationally intensive mapping, you can swap `map()` for `furrr::future_map()` once you set up a parallel plan. (Requires installing and loading `furrr` and `future`.)
+
+```{r}
+# install.packages("furrr")
+library(furrr)
+
+# Example: Suppose mapping a heavy function over a large vector
+heavy_function <- function(x) {
+  Sys.sleep(0.5)   # pretend it takes half a second
+  x ^ 2
+}
+
+# Plan for multicore (adjust to your OS; on Windows, use multisession)
+plan(multicore)
+
+# Instead of using map_dbl (serial):
+# results_serial <- map_dbl(1:10, heavy_function)
+
+# Use future_map_dbl (parallel):
+results_parallel <- future_map_dbl(1:10, heavy_function)
+
+# Remember to switch plan back if needed
+plan(sequential)
+```
+
+-   **Caveats**:
+
+    -   Make sure your environment is set up for parallel (e.g., multicore on Linux/macOS).
+    -   Not every RTF will be comfortable with parallel overhead---use this only if the functions are truly time‐consuming.
+
+------------------------------------------------------------------------
+
+## Summary of Additional `purrr` Patterns
+
+1.  **`imap()`**: Iterate with both element and name/index.
+2.  **`map_if()` / `map_at()`**: Conditionally apply functions to list elements.
+3.  **`transpose()`**: Flip a list‐of‐lists so that sub‐elements become top‐level lists.
+4.  **`pluck()`**: Conveniently extract nested elements by index/name.
+5.  **`modify()` / `modify_at()`**: In‐place modification of list elements while preserving all others.
+6.  **`reduce()` / `accumulate()`**: Collapse lists into single values or track running results.
+7.  **`invoke_map()`**: Apply multiple functions to the same input.
+8.  **`rerun()`**: Repeat an expression N times (e.g., random sampling).
+9.  **`keep()` / `discard()` / `detect()` / `some()` / `every()`**: Predicate‐based list filtering and searching.
+10. **`map_*()` inside `mutate()`**: Compute list‐column summaries or flags in a data frame.
+11. **`pmap()`**: Map over more than two parallel inputs (named lists).
+12. **`future_map()`** (from `furrr`): Parallelized mapping for heavy workloads.
+
+Each of these patterns can replace a verbose `for` loop or nested `if` logic with a clear, functional style that scales better and reads more declaratively. Pick the examples that make the most sense for your audience---if they're new to functional programming, start with the basics (`map()`, `map2()`, `imap()`), and then you can show a couple of "power user" patterns (like `reduce()` or `keep()`).
+
+Feel free to weave these code blocks (with heavy commenting) into your Quarto tutorial. This will give learners a broad overview of what `purrr` can do beyond simply replacing standard loops.
